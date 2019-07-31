@@ -3,18 +3,23 @@ import uuid
 import socket
 import os
 import signal
-import time
 import logging
 
-import config
+import espa
+from config import config
 
+from datetime import datetime
 from pymesos import MesosSchedulerDriver, Scheduler, encode_data
 from addict import Dict
 from threading import Thread
+from copy import deepcopy
+
+def right_now():
+    return datetime.now().strftime('%m-%d-%Y:%H:%M:%S.%f')
 
 class EspaTask:
-    def __init__(self, taskId="espaTask", command=None, cpu, mem):
-        self.taskId = taskId
+    def __init__(self, command=None, cpu, mem):
+        self.taskId = "EspaTask-{}".format(right_now())
         self.command = command
         self.cpu = cpu
         self.mem = mem
@@ -55,13 +60,14 @@ class EspaTask:
             return False
 
 class EspaScheduler(Scheduler):
-    def __init__(self, cpus, memory):
+    def __init__(self, products, cpus, memory):
         self.idleTaskList = []
         self.startingTaskList = {}
         self.runningTaskList = {}
         self.terminatingTaskList = {}
         self.required_cpus = cpus
         self.required_memory = memory
+        self.products = products
 
     # pre-populate the idleTaskList?
     # make request to api for large set of units
@@ -70,25 +76,51 @@ class EspaScheduler(Scheduler):
     # with a new request
 
 
+
     def resourceOffers(self, driver, offers):
         logging.debug("Received new offers...")
 
         filters = {'refuse_seconds': 3}
 
+        products = deepcopy(self.products)
+
         for offer in offers:
-            taskList = []
-            pendingTaskList = []
-
             while True:
-                if len(self.idleTaskList) == 0:
-                    break
-
                 # running tasks x cores per task < max permitted for espa
-
-                #FIFO
                 NewTask = EspaTask(cpu=self.required_cpus, mem=self.required_memory)
                 if NewTask.acceptOffer(offer):
+                    task = Dict()
+                    task_id = NewTask.task_id
+                    task.task_id.value = task_id
+                    task.agent_id.value = offer.agent_id.value
+                    task.name = 'task {}'.format(task_id)
+                    #task.command.value = TryTask.command
+                    task.container.type = 'DOCKER'
+                    task.container.docker.image = 'usgseros/espa-worker:0.0.2'
+                    task.resources = [
+                        dict(name='cpus', type='SCALAR', scalar={'value': TryTask.cpu}),
+                        dict(name='mem', type='SCALAR', scalar={'value': TryTask.mem}),
+                    ]
+                    # peel off a product
+                    product_type = products.pop(0)
+                    # make the request for work
+                    work = espa.get_products(product_type)
+                    # add that product to the back of the list
+                    products.append(product_type)
+                    task.command.value = NewTask.build_command(work)
+                    task.command.environment.variables = [{"name":"ESPA_FOO", "value":"666"}]
 
+                    self.startingTaskList[task_id] = TryTask
+                    taskList.append(task)                    
+
+
+                if work:
+                    
+
+                else:
+                    # nothing to do, decline offer
+                    self.declineOffer([offer.id])
+                    
 
 
     def statusUpdate(self, driver, update):
@@ -125,7 +157,7 @@ class EspaScheduler(Scheduler):
 
 def main():
 
-    cfg = config.config()
+    cfg = config()
 
     framework = Dict()
     framework.user = cfg.get('mesos_user')
@@ -134,8 +166,11 @@ def main():
     framework.hostname = socket.gethostname()
     framework.failover_timeout = 75 # whats sensible ?
 
+    cpus = cfg.get('task_cpu')
+    mem  = cfg.get('task_mem')
+
     driver = MesosSchedulerDriver(
-        EspaScheduler(),
+        EspaScheduler(cfg, cpus, mem),
         framework,
         cfg.get('mesos_master'),
         use_addict=True)
