@@ -19,7 +19,7 @@ def right_now():
 
 class EspaTask:
     def __init__(self, command=None, cpu, mem):
-        self.taskId = "EspaTask-{}".format(right_now())
+        self.taskId = "ESPATask-{}".format(right_now())
         self.command = command
         self.cpu = cpu
         self.mem = mem
@@ -60,14 +60,18 @@ class EspaTask:
             return False
 
 class EspaScheduler(Scheduler):
-    def __init__(self, products, cpus, memory):
+    def __init__(self, cfg, espa_api):
         self.idleTaskList = []
         self.startingTaskList = {}
         self.runningTaskList = {}
         self.terminatingTaskList = {}
-        self.required_cpus = cpus
-        self.required_memory = memory
-        self.products = products
+        self.required_cpus   = cfg.get('task_cpu')
+        self.required_memory = cfg.get('task_mem')
+        self.refuse_seconds  = cfg.get('offer_refuse_seconds')
+        self.request_count   = cfg.get('product_request_count')
+        self.products        = cfg.get('product_frequency')
+        self.espa = espa_api
+
 
     # pre-populate the idleTaskList?
     # make request to api for large set of units
@@ -75,64 +79,66 @@ class EspaScheduler(Scheduler):
     # when a new offer comes in, pull the oldest, and resupply the list
     # with a new request
 
-
-
     def resourceOffers(self, driver, offers):
-        logging.debug("Received new offers...")
+        logger.debug("Received new offers...")
 
-        filters = {'refuse_seconds': 3}
+        offer_ids = [i.id for i in offers]
 
-        products = deepcopy(self.products)
+        # check to see if any more tasks should be launched
+        if not self.espa.run_mesos_tasks():
+            logger.info("Mesos tasks disabled!")
+            driver.declineOffer(offer_ids, {'refuse_seconds': self.refuse_seconds})
+            return
+
+        if not self.idleTaskList: # idleTaskList is empty, try re-populating it
+            product_type = self.products.pop(0)
+            units = espa.get_products_to_process(product_type, self.request_count)
+            if units:
+                [self.idleTaskList.append(u) for u in units]
+                self.products.append(product_type)
+            else:
+                logger.info("No work to do for product_type: {}, declining offers!".format(product_type))
+                driver.declineOffer(offer_ids, {'refuse_seconds': self.refuse_seconds})
+                return
 
         for offer in offers:
-            while True:
-                # running tasks x cores per task < max permitted for espa
-                NewTask = EspaTask(cpu=self.required_cpus, mem=self.required_memory)
-                if NewTask.acceptOffer(offer):
-                    task = Dict()
-                    task_id = NewTask.task_id
-                    task.task_id.value = task_id
-                    task.agent_id.value = offer.agent_id.value
-                    task.name = 'task {}'.format(task_id)
-                    #task.command.value = TryTask.command
-                    task.container.type = 'DOCKER'
-                    task.container.docker.image = 'usgseros/espa-worker:0.0.2'
-                    task.resources = [
-                        dict(name='cpus', type='SCALAR', scalar={'value': TryTask.cpu}),
-                        dict(name='mem', type='SCALAR', scalar={'value': TryTask.mem}),
-                    ]
-                    # peel off a product
-                    product_type = products.pop(0)
-                    # make the request for work
-                    work = espa.get_products(product_type)
-                    # add that product to the back of the list
-                    products.append(product_type)
-                    task.command.value = NewTask.build_command(work)
-                    task.command.environment.variables = [{"name":"ESPA_FOO", "value":"666"}]
+            # running tasks x cores per task < max permitted for espa
+            NewTask = EspaTask(cpu=self.required_cpus, mem=self.required_memory)
+            if NewTask.acceptOffer(offer):
+                logger.debug("Acceptable offer received..")
+                task = Dict()
+                task_id = NewTask.task_id
+                task.task_id.value = task_id
+                task.agent_id.value = offer.agent_id.value
+                task.name = 'task {}'.format(task_id)
+                task.container.type = 'DOCKER'
+                task.container.docker.image = 'usgseros/espa-worker:0.0.2'
+                task.resources = [
+                    dict(name='cpus', type='SCALAR', scalar={'value': TryTask.cpu}),
+                    dict(name='mem', type='SCALAR', scalar={'value': TryTask.mem}),
+                ]
+                # pull off a unit of work
+                work = self.idleTaskList.pop(0)
+                # format for passing as arg to container ?
+                task.command.value = NewTask.build_command(work)
+                task.command.environment.variables = [{"name":"ESPA_FOO", "value":"666"}]
 
-                    self.startingTaskList[task_id] = TryTask
-                    taskList.append(task)                    
+                driver.launchTasks([offer.id], [task])
 
+            else: # decline the offer
+                driver.declineOffer([offer.id])
 
-                if work:
                     
-
-                else:
-                    # nothing to do, decline offer
-                    self.declineOffer([offer.id])
-                    
-
-
     def statusUpdate(self, driver, update):
         task_id = update.task_id.value
         state = update.state
         if state == "TASK_STARTING":
             ETask = self.startingTaskList[task_id]
-            logging.debug("Task %s is starting. " % task_id)
+            logger.debug("Task %s is starting. " % task_id)
         elif state == "TASK_RUNNING":
             if task_id in self.startingTaskList:
                 ETask = self.startingTaskList[task_id]
-                logging.info("Task %s running in %s, moving to running list" % 
+                logger.info("Task %s running in %s, moving to running list" % 
                              (task_id, update.container_status.network_infos[0].ip_addresses[0].ip_address))
                 self.runningTaskList[task_id] = ETask
                 del self.startingTaskList[task_id]
@@ -146,50 +152,35 @@ class EspaScheduler(Scheduler):
                 del self.runningTaskList[task_id]
 
             if ETask:
-                logging.info("ESPA task: %s failed." % ETask.taskId)
+                logger.info("ESPA task: %s failed." % ETask.taskId)
                 self.idleTaskList.append(ETask)
                 driver.reviveOffers()
             else:
-                logging.error("Received task failed for unknown task: %s" % task_id)
+                logger.error("Received task failed for unknown task: %s" % task_id)
         else:
-            logging.info("Received status %s for task id: %s" % (update.state, task_id))
+            logger.info("Received status %s for task id: %s" % (update.state, task_id))
 
 
-def main():
-
-    cfg = config()
-
+def get_framework(cfg):
     framework = Dict()
     framework.user = cfg.get('mesos_user')
     framework.id.value = str(uuid.uuid4())
     framework.name = "ESPAScheduler"
     framework.hostname = socket.gethostname()
     framework.failover_timeout = 75 # whats sensible ?
+    return framework
 
-    cpus = cfg.get('task_cpu')
-    mem  = cfg.get('task_mem')
+def main():
+    cfg       = config()
+    espa_api  = espa.api_connect(cfg.get('espa_api'))
+    framework = get_framework(cfg)
+    scheduler = EspaScheduler(cfg, espa_api)
+    master    = cfg.get('mesos_master') 
 
-    driver = MesosSchedulerDriver(
-        EspaScheduler(cfg, cpus, mem),
-        framework,
-        cfg.get('mesos_master'),
-        use_addict=True)
-
-    def signal_handler(signal, frame):
-        driver.stop()
-
-    def run_driver_thread():
-        driver.run()
-
-    driver_thread = Thread(target=run_driver_thread, args=())
-    driver_thread.start()
-
-    print('Scheduler running, Ctl+c to quit.')
-    signal.signal(signal.SIGINT, signal_handler)
-
-    while driver_thread.is_alive():
-        time.sleep(1)
+    driver = MesosSchedulerDriver(scheduler, framework, master, use_addict=True)
+    driver.run()
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
     main()
