@@ -82,7 +82,7 @@ class EspaScheduler(Scheduler):
     def resourceOffers(self, driver, offers):
         logger.debug("Received new offers...")
 
-        offer_ids = [i.id for i in offers]
+        offer_ids = [i.id for i in offers] # addict Dicts()
 
         # check to see if any more tasks should be launched
         if not self.espa.run_mesos_tasks():
@@ -92,13 +92,14 @@ class EspaScheduler(Scheduler):
 
         if not self.idleTaskList: # idleTaskList is empty, try re-populating it
             product_type = self.products.pop(0)
-            units = espa.get_products_to_process(product_type, self.request_count)
+            units = espa.get_products_to_process([product_type], self.request_count)
             if units:
                 [self.idleTaskList.append(u) for u in units]
                 self.products.append(product_type)
             else:
                 logger.info("No work to do for product_type: {}, declining offers!".format(product_type))
                 driver.declineOffer(offer_ids, {'refuse_seconds': self.refuse_seconds})
+                self.products.append(product_type)
                 return
 
         for offer in offers:

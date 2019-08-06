@@ -14,10 +14,6 @@ def default_env(variable, value, operator=None):
 def config():
     de = default_env
 
-    aux_dir = "/usr/local/auxiliaries/"
-    if os.environ.get("AUX_DIR"):
-        aux_dir = os.environ.get("AUX_DIR")
-
     frequency = []
     frequency.append(['landsat', de('landsat_frequency', 3, int)[1]])
     frequency.append(['modis',   de('modis_frequency',   2, int)[1]])
@@ -27,10 +23,10 @@ def config():
 
 
     return dict([
-        de('mesos_user', None),
-        de('mesos_pass', None),
+        de('mesos_principal', None),
+        de('mesos_secret', None),
         de('mesos_master', None),
-        de('mesos_jobscale', 1, int),
+        de('mesos_core_limit', None),
         ['product_frequency', product_frequency],
         de('espa_api', 'http://localhost:9876/production-api/v0'), # SET IN ENV
         de('product_request_count', 50, int),

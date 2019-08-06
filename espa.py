@@ -69,7 +69,7 @@ class APIServer(object):
         if key in resp.keys():
             return resp[key]
 
-    def get_products_to_process(self, limit, user, priority, product_type):
+    def get_products_to_process(self, product_type, limit, user=None, priority=None):
         """
         Retrieve products for processing
 
@@ -117,7 +117,7 @@ class APIServer(object):
         Tests the base URL for the class
         Returns: True if 200 status received, else False
         """
-        _, _ = self.request('get', 200)
+        _, _ = self.request('get', status=200)
         return True
 
 
