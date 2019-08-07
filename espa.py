@@ -16,8 +16,9 @@ class APIServer(object):
     """
     Simple class for a couple espa-api calls
     """
-    def __init__(self, base_url):
+    def __init__(self, base_url, image):
         self.base = base_url
+        self.image = image
 
     def request(self, method, resource=None, status=None, **kwargs):
         """
@@ -69,6 +70,35 @@ class APIServer(object):
         if key in resp.keys():
             return resp[key]
 
+    def update_status(self, prod_id, order_id, val):
+        """
+        Update the status of a product
+
+        Args:
+            prod_id: scene name
+            order_id: order id
+            proc_loc: processing location
+            val: status value
+
+        Returns:
+        """
+        url = '/update_status'
+
+        data_dict = {'name': prod_id,
+                     'orderid': order_id,
+                     'processing_loc': self.image,
+                     'status': val}
+
+        resp, status = self.request('post', url, json=data_dict, status=200)
+
+        return resp
+
+    def set_to_scheduled(unit):
+        prod_id = unit.get('scene')
+        order_id = unit.get('orderid')
+        self.update_status(prod_id, order_id, 'scheduled')
+        return true
+
     def get_products_to_process(self, product_type, limit, user=None, priority=None):
         """
         Retrieve products for processing
@@ -94,11 +124,14 @@ class APIServer(object):
 
         return resp
 
-    def run_mesos_tasks(self):
+    def mesos_tasks_disabled(self):
         run = self.get_configuration('run_mesos_tasks')
         if run == 'True':
-            return True
-        return False
+            resp = False
+        else:
+            logger.info("Mesos tasks disabled!")
+            resp = True
+        return resp
 
     @staticmethod
     def _unexpected_status(code, url):
@@ -121,7 +154,7 @@ class APIServer(object):
         return True
 
 
-def api_connect(url):
+def api_connect(params):
     """
     Simple lead in method for using the API connection class
 
@@ -131,6 +164,8 @@ def api_connect(url):
     Returns: initialized APIServer object if successful connection
              else None
     """
-    api = APIServer(url)
+    url = params.get('espa_api')
+    image = params.get('task_image')
+    api = APIServer(url, image)
     api.test_connection() # throws exception if non-200 response to base url
     return api
