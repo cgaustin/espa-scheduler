@@ -1,12 +1,21 @@
 def env_vars(cfg):
     """Return list of dicts defining task environment vars"""
-    return [{"name":"ESPA_FOO", "value":"666"}]
+    return [{"name":"ESPA_STORAGE",          "value":config.get('espa_storage')},
+            {"name":"ESPA_XMLRPC",           "value":config.get('espa_xmlrpc')},
+            {"name":"ESPA_API",              "value":config.get('espa_api')},
+            {"name":"ESPA_CACHE_HOST_LIST",  "value":config.get('espa_cache_host_list')},
+            {"name":"ASTER_GED_SERVER_NAME", "value":config.get('aster_ged_server_name')},
+            {"name":"AUX_DIR",               "value":config.get('aux_dir')}]
 
 def volumes(cfg):
     """Return list of dicts defining task container volumes"""
-    return [{"container_path": "/usgs",
-             "host_path": "/usr/local/usgs",
-             "mode": "RW"}]
+    aux_mount  = cfg.get('auxiliary_mount')
+    aux_dest   = cfg.get('aux_dir')
+    stor_mount = cfg.get('storage_mount')
+    stor_dest  = cfg.get('espa_storage')
+
+    return [{"container_path": aux_dest,  "host_path": aux_mount,  "mode": "RW"},
+            {"container_path": stor_dest, "host_path": stor_mount, "mode": "RW"}]
 
 def resources(cpus, memory):
     """Return list of task resource dicts"""

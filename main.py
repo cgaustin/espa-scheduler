@@ -16,13 +16,22 @@ from addict import Dict
 from threading import Thread
 from copy import deepcopy
 
+def transfer_lists(from_dict, to_dict, update):
+    task_id = update.task_id.value
+    if task_id in from_dict:
+        to_dict[task_id] = from_dict.pop(task_id)
+        return True
+    else:
+        to_dict[task_id] = update
+        return False
+
+
 class EspaScheduler(Scheduler):
     def __init__(self, cfg, espa_api):
         self.workList        = []
         self.idleList        = {}
         self.startingList    = {}
         self.runningList     = {}
-        self.terminatingList = {}
         self.max_cpus        = cfg.get('max_cpu')
         self.required_cpus   = cfg.get('task_cpu')
         self.required_memory = cfg.get('task_mem')
@@ -94,12 +103,6 @@ class EspaScheduler(Scheduler):
             # put that product type at the back of the list
             self.products.append(product_type)
 
-            for u in units:
-                # update retrieved products in espa to scheduled status
-                espa.set_to_scheduled(u)
-                # add the units of work to the workList
-                self.workList.append(u)
-
             # if units are emtpy...
             if not units:
                 logger.info("No work to do for product_type: {}, declining offers!".format(product_type))
@@ -107,6 +110,12 @@ class EspaScheduler(Scheduler):
                 driver.declineOffer([i.id for i in offers], {'refuse_seconds': self.refuse_seconds}) 
                 # there's no work to do, return
                 return
+            else:
+                for u in units:
+                    # update retrieved products in espa to scheduled status
+                    espa.set_to_scheduled(u)
+                    # add the units of work to the workList
+                    self.workList.append(u)
 
         # we have work to do, check if there are usable offers
         for offer in offers:
@@ -114,26 +123,55 @@ class EspaScheduler(Scheduler):
                 logger.debug("Acceptable offer received..")
                 # pull off a unit of work
                 work     = self.workList.pop(0)
-                new_task = task.build("ESPATask-{}".format(right_now()), offer, self.task_image, 
+                task_id  = "{}-{}".format(work.get('orderid'), work.get('scene'))
+                new_task = task.build(task_id, offer, self.task_image, 
                                       self.required_cpus, self.required_memory, work, self.cfg)
                 driver.launchTasks([offer.id], [new_task])
+                self.idleList[task_id] = new_task
             else: # decline the offer
                 driver.declineOffer([offer.id])
 
                     
     def statusUpdate(self, driver, update):
+        # possible status values
+        # http://mesos.apache.org/api/latest/java/org/apache/mesos/Protos.TaskState.html
         task_id = update.task_id.value
+        orderid, scene = task_id.split("-")
         state = update.state
         if state == "TASK_STARTING":
-            ETask = self.startingList[task_id]
-            logger.debug("Task %s is starting. " % task_id)
+            if task_id in self.idleList:
+                transfer_lists(self.idleList, self.startingList, task_id)
+            elif task_id not in self.startingList:
+                logger.debug("Update for unknown task - task_id: {}  update: {}".format(task_id, update))
+                self.startingList[task_id] = update
         elif state == "TASK_RUNNING":
             if task_id in self.startingList:
-                ETask = self.startingList[task_id]
                 logger.info("Task %s running in %s, moving to running list" % 
                              (task_id, update.container_status.network_infos[0].ip_addresses[0].ip_address))
-                self.runningList[task_id] = ETask
-                del self.startingList[task_id]
+                transfer_lists(self.startingList, self.runningList, task_id)
+            elif task_id not in self.runningList:
+                logger.debug("Update for unknown task - task_id: {}  update: {}".format(task_id, update))
+                self.runningList[task_id] = update
+        elif state == "TASK_FINISHED":
+            logger.info("Task {} finished!".format(task_id))
+            try:
+                self.runningList.__delitem__(task_id)
+            except KeyError:
+                logger.debug("Received TASK_FINISHED for task not in the runningList: {}".format(task_id))
+        else:
+            logger.debug("Task error! task_id: {} - state: {}".format(task_id, state))
+            if task_id in self.idleList:
+                self.idleList.__delitem__(task_id)
+            if task_id in self.startingList:
+                self.startingList.__delitem__(task_id)
+            if task_id in self.runningList:
+                self.runningList.__delitem__(task_id)
+
+            
+
+
+
+
         elif state == "TASK_FAILED":
             ETask = None
             if task_id in self.startingList:
@@ -168,8 +206,13 @@ def main():
     framework = get_framework(cfg)
     scheduler = EspaScheduler(cfg, espa_api)
     master    = cfg.get('mesos_master') 
+    principal = cfg.get('mesos_principal')
+    secret    = cfg.get('mesos_secret')
 
-    driver = MesosSchedulerDriver(scheduler, framework, master, use_addict=True)
+    driver = MesosSchedulerDriver(scheduler, framework, master,
+                                  use_addict=True,
+                                  principal=principal,
+                                  secret=secret)
     driver.run()
 
 if __name__ == '__main__':

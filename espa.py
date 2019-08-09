@@ -99,6 +99,28 @@ class APIServer(object):
         self.update_status(prod_id, order_id, 'scheduled')
         return true
 
+    def set_scene_error(self, prod_id, order_id, proc_loc, log):
+        """
+        Set a scene to error status
+
+        Args:
+            prod_id: scene name
+            order_id: order id
+            proc_loc: processing location
+            log: log file contents
+
+        Returns:
+        """
+        url = '/set_product_error'
+        data_dict = {'name': prod_id,
+                     'orderid': order_id,
+                     'processing_loc': proc_loc,
+                     'error': log}
+
+        resp, status = self.request('post', url, json=data_dict, status=200)
+
+        return resp
+
     def get_products_to_process(self, product_type, limit, user=None, priority=None):
         """
         Retrieve products for processing
