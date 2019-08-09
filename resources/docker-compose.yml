@@ -1,0 +1,91 @@
+version: "3"
+
+networks:
+  lcmap:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.168.32.0/24
+
+services:
+  zookeeper:
+    image: zookeeper:3.4.9
+    restart: always
+    ports:
+      - "2181:2181"
+    networks:
+      - lcmap
+
+  mesos-dns:
+    image: tobilg/mesos-dns:v0.5.2
+    ports:
+      - "5353:53"
+      - "8123:8123"
+    networks:
+      lcmap:
+        ipv4_address: 192.168.32.53
+    links:
+      - zookeeper
+    depends_on:
+      - zookeeper
+    environment:
+      - MESOS_ZK=zk://zookeeper:2181/mesos
+      - LOCAL_IP=192.168.32.53
+      - MESOS_DNS_EXTERNAL_SERVERS=8.8.8.8,8.8.4.4
+      - MESOS_DNS_HTTP_ENABLED=true
+      - MESOS_DNS_HTTP_PORT=8123
+
+  mesos-master:
+    image: mesosphere/mesos-master:1.0.3-rc2
+    hostname: ${HOSTNAME:-localhost}
+    ports:
+      - "5050:5050"
+    networks:
+      - lcmap
+    links:
+      - zookeeper
+    depends_on:
+      - zookeeper
+    environment:
+      - MESOS_PORT=5050
+      - MESOS_ZK=zk://zookeeper:2181/mesos
+      - MESOS_QUORUM=1
+      - MESOS_REGISTRY=in_memory
+      - MESOS_LOG_DIR=/var/log/mesos
+      - MESOS_WORK_DIR=/var/tmp/mesos
+    volumes:
+      - ./volumes/mesos/log:/var/log/mesos
+      - ./volumes/mesos/tmp:/var/tmp/mesos
+
+  mesos-slave:
+    image: mesosphere/mesos-slave:1.0.3-rc2
+    networks:
+      - lcmap
+    hostname: ${HOSTNAME:-localhost}
+    ports:
+      - "5051:5051"
+    dns:
+      - 192.168.32.53
+    depends_on:
+      - zookeeper
+      - mesos-master
+      - mesos-dns
+    links:
+      - zookeeper
+    privileged: true
+    restart: always
+    environment:
+      - MESOS_PORT=5051
+      - MESOS_MASTER=zk://zookeeper:2181/mesos
+      - MESOS_SWITCH_USER=0
+      - MESOS_CONTAINERIZERS=mesos,docker
+      - MESOS_LOG_DIR=/var/log/mesos
+      - MESOS_WORK_DIR=/var/tmp/mesos
+    volumes:
+      - ./volumes/mesos/log:/var/log/mesos
+      - ./volumes/mesos/tmp:/var/tmp/mesos
+      - /usr/bin/docker:/usr/local/bin/docker
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /sys/fs/cgroup:/sys/fs/cgroup
+

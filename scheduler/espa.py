@@ -99,7 +99,7 @@ class APIServer(object):
         self.update_status(prod_id, order_id, 'scheduled')
         return true
 
-    def set_scene_error(self, prod_id, order_id, proc_loc, log):
+    def set_scene_error(self, prod_id, order_id, data):
         """
         Set a scene to error status
 
@@ -114,8 +114,8 @@ class APIServer(object):
         url = '/set_product_error'
         data_dict = {'name': prod_id,
                      'orderid': order_id,
-                     'processing_loc': proc_loc,
-                     'error': log}
+                     'processing_loc': self.image,
+                     'error': data}
 
         resp, status = self.request('post', url, json=data_dict, status=200)
 

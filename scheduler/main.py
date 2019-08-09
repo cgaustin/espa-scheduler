@@ -5,32 +5,23 @@ import os
 import signal
 import logging
 
-from config import config
-import espa
-import task
-from task import Task
-from util import right_now
+from scheduler.config import config
+import scheduler.espa as espa
+import scheduler.task as task
+from scheduler.util import right_now
 
 from pymesos import MesosSchedulerDriver, Scheduler, encode_data
 from addict import Dict
 from threading import Thread
 from copy import deepcopy
 
-def transfer_lists(from_dict, to_dict, update):
-    task_id = update.task_id.value
-    if task_id in from_dict:
-        to_dict[task_id] = from_dict.pop(task_id)
-        return True
-    else:
-        to_dict[task_id] = update
-        return False
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 
 class EspaScheduler(Scheduler):
     def __init__(self, cfg, espa_api):
         self.workList        = []
-        self.idleList        = {}
-        self.startingList    = {}
         self.runningList     = {}
         self.max_cpus        = cfg.get('max_cpu')
         self.required_cpus   = cfg.get('task_cpu')
@@ -74,7 +65,7 @@ class EspaScheduler(Scheduler):
             return False
 
     def core_limit_reached(self):
-        running_count = len(self.running_list)
+        running_count = len(self.runningList)
         task_core_count = self.required_cpus
         core_utilization = running_count * task_core_count
         resp = False
@@ -99,7 +90,7 @@ class EspaScheduler(Scheduler):
             # pull the first item off the product types list
             product_type = self.products.pop(0)
             # get products to process for the product_type
-            units = espa.get_products_to_process([product_type], self.request_count)
+            units = self.espa.get_products_to_process([product_type], self.request_count)
             # put that product type at the back of the list
             self.products.append(product_type)
 
@@ -113,7 +104,7 @@ class EspaScheduler(Scheduler):
             else:
                 for u in units:
                     # update retrieved products in espa to scheduled status
-                    espa.set_to_scheduled(u)
+                    self.espa.set_to_scheduled(u)
                     # add the units of work to the workList
                     self.workList.append(u)
 
@@ -130,65 +121,33 @@ class EspaScheduler(Scheduler):
                 self.idleList[task_id] = new_task
             else: # decline the offer
                 driver.declineOffer([offer.id])
-
                     
     def statusUpdate(self, driver, update):
-        # possible status values
+        # possible state values
         # http://mesos.apache.org/api/latest/java/org/apache/mesos/Protos.TaskState.html
         task_id = update.task_id.value
         orderid, scene = task_id.split("-")
         state = update.state
-        if state == "TASK_STARTING":
-            if task_id in self.idleList:
-                transfer_lists(self.idleList, self.startingList, task_id)
-            elif task_id not in self.startingList:
-                logger.debug("Update for unknown task - task_id: {}  update: {}".format(task_id, update))
-                self.startingList[task_id] = update
-        elif state == "TASK_RUNNING":
-            if task_id in self.startingList:
-                logger.info("Task %s running in %s, moving to running list" % 
-                             (task_id, update.container_status.network_infos[0].ip_addresses[0].ip_address))
-                transfer_lists(self.startingList, self.runningList, task_id)
-            elif task_id not in self.runningList:
-                logger.debug("Update for unknown task - task_id: {}  update: {}".format(task_id, update))
-                self.runningList[task_id] = update
-        elif state == "TASK_FINISHED":
-            logger.info("Task {} finished!".format(task_id))
-            try:
-                self.runningList.__delitem__(task_id)
-            except KeyError:
-                logger.debug("Received TASK_FINISHED for task not in the runningList: {}".format(task_id))
-        else:
-            logger.debug("Task error! task_id: {} - state: {}".format(task_id, state))
-            if task_id in self.idleList:
-                self.idleList.__delitem__(task_id)
-            if task_id in self.startingList:
-                self.startingList.__delitem__(task_id)
+        healthy_states = ["TASK_STAGING", "TASK_STARTING", "TASK_RUNNING", "TASK_FINISHED"]
+        
+        if state in healthy_states:
+            logger.debug("status update for: {}  new status: {}".format(task_id, state))
+
+            if state == "TASK_RUNNING":
+                if task_id not in self.runningList:
+                    self.runningList[task_id] = right_now()
+
+            if state == "TASK_FINISHED":
+                try:
+                    self.runningList.__delitem__(task_id)
+                except KeyError:
+                    logger.debug("Received TASK_FINISHED update for {}, which wasn't in the runningList".format(task_id))
+
+        else: # something abnormal happened
+            logger.error("abnormal task state for: {}, full update: {}".format(task_id, update))
+            self.espa.set_scene_error(scene, orderid, update)
             if task_id in self.runningList:
                 self.runningList.__delitem__(task_id)
-
-            
-
-
-
-
-        elif state == "TASK_FAILED":
-            ETask = None
-            if task_id in self.startingList:
-                ETask = self.startingList[task_id]
-                del self.startingList[task_id]
-            elif task_id in self.runningList:
-                ETask = self.runningList[task_id]
-                del self.runningList[task_id]
-
-            if ETask:
-                logger.info("ESPA task: %s failed." % ETask.taskId)
-                self.idleList.append(ETask)
-                driver.reviveOffers()
-            else:
-                logger.error("Received task failed for unknown task: %s" % task_id)
-        else:
-            logger.info("Received status %s for task id: %s" % (update.state, task_id))
 
 
 def get_framework(cfg):
@@ -201,8 +160,9 @@ def get_framework(cfg):
     return framework
 
 def main():
+
     cfg       = config()
-    espa_api  = espa.api_connect(cfg.get('espa_api'))
+    espa_api  = espa.api_connect(cfg)
     framework = get_framework(cfg)
     scheduler = EspaScheduler(cfg, espa_api)
     master    = cfg.get('mesos_master') 
@@ -216,6 +176,4 @@ def main():
     driver.run()
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
-    logger = logging.getLogger(__name__)
     main()

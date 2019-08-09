@@ -26,7 +26,7 @@ def config():
         de('mesos_principal', None),
         de('mesos_secret', None),
         de('mesos_master', None),
-        de('mesos_core_limit', None),
+        de('mesos_user', 'espa'),
         ['product_frequency', product_frequency()],
         de('espa_api', 'http://localhost:9876/production-api/v0'),
         de('product_request_count', 50, int),
