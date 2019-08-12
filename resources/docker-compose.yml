@@ -54,9 +54,6 @@ services:
       - MESOS_REGISTRY=in_memory
       - MESOS_LOG_DIR=/var/log/mesos
       - MESOS_WORK_DIR=/var/tmp/mesos
-    volumes:
-      - ./volumes/mesos/log:/var/log/mesos
-      - ./volumes/mesos/tmp:/var/tmp/mesos
 
   mesos-slave:
     image: mesosphere/mesos-slave:1.0.3-rc2
@@ -82,10 +79,4 @@ services:
       - MESOS_CONTAINERIZERS=mesos,docker
       - MESOS_LOG_DIR=/var/log/mesos
       - MESOS_WORK_DIR=/var/tmp/mesos
-    volumes:
-      - ./volumes/mesos/log:/var/log/mesos
-      - ./volumes/mesos/tmp:/var/tmp/mesos
-      - /usr/bin/docker:/usr/local/bin/docker
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /sys/fs/cgroup:/sys/fs/cgroup
 

@@ -35,11 +35,9 @@ def config():
         de('task_mem', 5120, int), # 5G
         de('task_image', None),
         de('offer_refuse_seconds', 30, int),
-        de('auxiliary_mount', '/usr/local/usgs/bridge/auxiliaries'),
-        de('aux_dir', '/usr/local/auxiliaries'), # name required by processing libs
-        de('storage_mount', '/espa-storage'),
-        de('espa_storage', '/espa-storage'), # name required by processing libs
-        de('espa_xmlrpc', None),
-        de('espa_cache_host_list', None),
+        de('auxiliary_mount', None),
+        de('aux_dir', None), # name required by processing libs
+        de('storage_mount', None),
+        de('espa_storage', None), # name required by processing libs
         de('aster_ged_server_name', None)
     ])

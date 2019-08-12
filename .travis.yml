@@ -1,0 +1,13 @@
+dist: xenial
+language: python
+services:
+- docker
+sudo: required
+before_install:
+- sudo apt-get update
+- sudo apt-get install python3 python3-pip gcc git make -y
+- python3 -m pip install git+https://github.com/benoitc/http-parser
+- python3 -m pip install -r resources/requirements.txt
+- nose2
+after_success:
+- "./bin/build"
