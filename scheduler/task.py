@@ -1,11 +1,11 @@
+from addict import Dict
+
 def env_vars(cfg):
     """Return list of dicts defining task environment vars"""
-    return [{"name":"ESPA_STORAGE",          "value":config.get('espa_storage')},
-            {"name":"ESPA_XMLRPC",           "value":config.get('espa_xmlrpc')},
-            {"name":"ESPA_API",              "value":config.get('espa_api')},
-            {"name":"ESPA_CACHE_HOST_LIST",  "value":config.get('espa_cache_host_list')},
-            {"name":"ASTER_GED_SERVER_NAME", "value":config.get('aster_ged_server_name')},
-            {"name":"AUX_DIR",               "value":config.get('aux_dir')}]
+    return [{"name":"ESPA_STORAGE",          "value":cfg.get('espa_storage')},
+            {"name":"ESPA_API",              "value":cfg.get('espa_api')},
+            {"name":"ASTER_GED_SERVER_NAME", "value":cfg.get('aster_ged_server_name')},
+            {"name":"AUX_DIR",               "value":cfg.get('aux_dir')}]
 
 def volumes(cfg):
     """Return list of dicts defining task container volumes"""
