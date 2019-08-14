@@ -90,7 +90,7 @@ class EspaScheduler(Scheduler):
             # pull the first item off the product types list
             product_type = self.products.pop(0)
             # get products to process for the product_type
-            units = self.espa.get_products_to_process([product_type], self.request_count)
+            units = self.espa.get_products_to_process([product_type], self.request_count).get("products")
             # put that product type at the back of the list
             self.products.append(product_type)
 

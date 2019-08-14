@@ -91,13 +91,13 @@ class APIServer(object):
 
         resp, status = self.request('post', url, json=data_dict, status=200)
 
-        return resp
+        return {"response": resp, "status": status, "data": data_dict}
 
-    def set_to_scheduled(unit):
+    def set_to_scheduled(self, unit):
         prod_id = unit.get('scene')
         order_id = unit.get('orderid')
         self.update_status(prod_id, order_id, 'scheduled')
-        return true
+        return True
 
     def set_scene_error(self, prod_id, order_id, data):
         """
@@ -119,7 +119,7 @@ class APIServer(object):
 
         resp, status = self.request('post', url, json=data_dict, status=200)
 
-        return resp
+        return {"response": resp, "status": status, "data": data_dict}
 
     def get_products_to_process(self, product_type, limit, user=None, priority=None):
         """
@@ -144,7 +144,7 @@ class APIServer(object):
 
         resp, status = self.request('get', url, status=200)
 
-        return resp
+        return {"products": resp, "url": url}
 
     def mesos_tasks_disabled(self):
         run = self.get_configuration('run_mesos_tasks')
