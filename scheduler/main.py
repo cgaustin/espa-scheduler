@@ -32,6 +32,7 @@ class EspaScheduler(Scheduler):
         self.products        = cfg.get('product_frequency')
         self.cfg             = cfg
         self.espa            = espa_api
+        self.healthy_states  = ["TASK_STAGING", "TASK_STARTING", "TASK_RUNNING", "TASK_FINISHED"]
 
     def __getResource(self, res, name):
         for r in res:
@@ -60,9 +61,8 @@ class EspaScheduler(Scheduler):
         if(accept == True):
             self.__updateResource(offer.resources, "cpus", self.required_cpus)
             self.__updateResource(offer.resources, "mem", self.required_memory)
-            return True
-        else:
-            return False
+
+        return accept
 
     def core_limit_reached(self):
         running_count = len(self.runningList)
@@ -78,12 +78,19 @@ class EspaScheduler(Scheduler):
 
     def resourceOffers(self, driver, offers):
         logger.debug("Received new offers...")
+        response = Dict()
+        response.offers.length = len(offers)
+        response.offers.accepted = 0
+        response.offers.declined = 0
 
         # check to see if any more tasks should be launched
         if self.espa.mesos_tasks_disabled() or self.core_limit_reached():
             # decline the offers to free up the resources
             driver.declineOffer([i.id for i in offers], {'refuse_seconds': self.refuse_seconds})
-            return
+            response.tasks.enabled = False
+            return response
+        else:
+            response.tasks.enabled = True
 
         # if workList is empty, try re-populating it
         if not self.workList:
@@ -100,13 +107,17 @@ class EspaScheduler(Scheduler):
                 # decline the offer, freeing up the resources
                 driver.declineOffer([i.id for i in offers], {'refuse_seconds': self.refuse_seconds}) 
                 # there's no work to do, return
-                return
+                response.work.length = 0
+                return response
             else:
                 for u in units:
                     # update retrieved products in espa to scheduled status
                     self.espa.set_to_scheduled(u)
                     # add the units of work to the workList
                     self.workList.append(u)
+                response.work.length = len(units)
+        else:
+            response.work.length = len(self.workList)
 
         # we have work to do, check if there are usable offers
         for offer in offers:
@@ -118,9 +129,12 @@ class EspaScheduler(Scheduler):
                 new_task = task.build(task_id, offer, self.task_image, 
                                       self.required_cpus, self.required_memory, work, self.cfg)
                 driver.launchTasks([offer.id], [new_task])
-                self.idleList[task_id] = new_task
+                response.offers.accepted += 1
             else: # decline the offer
                 driver.declineOffer([offer.id])
+                response.offers.declined += 1
+
+        return response
                     
     def statusUpdate(self, driver, update):
         # possible state values
@@ -128,14 +142,22 @@ class EspaScheduler(Scheduler):
         task_id = update.task_id.value
         orderid, scene = task_id.split("-")
         state = update.state
-        healthy_states = ["TASK_STAGING", "TASK_STARTING", "TASK_RUNNING", "TASK_FINISHED"]
-        
-        if state in healthy_states:
+
+        response = Dict()
+        response.task_id = task_id
+        response.state = state
+
+        if state in self.healthy_states:
             logger.debug("status update for: {}  new status: {}".format(task_id, state))
+            response.status = "healthy"
 
             if state == "TASK_RUNNING":
+                response.list.name = "running"
                 if task_id not in self.runningList:
                     self.runningList[task_id] = right_now()
+                    response.list.status = "new"
+                else:
+                    response.list.status = "current"
 
             if state == "TASK_FINISHED":
                 try:
@@ -145,9 +167,12 @@ class EspaScheduler(Scheduler):
 
         else: # something abnormal happened
             logger.error("abnormal task state for: {}, full update: {}".format(task_id, update))
+            response.status = "unhealthy"
             self.espa.set_scene_error(scene, orderid, update)
             if task_id in self.runningList:
                 self.runningList.__delitem__(task_id)
+
+        return response
 
 
 def get_framework(cfg):
