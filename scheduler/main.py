@@ -34,13 +34,13 @@ class EspaScheduler(Scheduler):
         self.espa            = espa_api
         self.healthy_states  = ["TASK_STAGING", "TASK_STARTING", "TASK_RUNNING", "TASK_FINISHED"]
 
-    def __getResource(self, res, name):
+    def _getResource(self, res, name):
         for r in res:
             if r.name == name:
                 return r.scalar.value
         return 0.0
 
-    def __updateResource(self, res, name, value):
+    def _updateResource(self, res, name, value):
         if value <= 0:
             return
         for r in res:
@@ -51,16 +51,16 @@ class EspaScheduler(Scheduler):
     def acceptOffer(self, offer):
         accept = True
         if self.required_cpus != 0:
-            cpu = self.__getResource(offer.resources, "cpus")
+            cpu = self._getResource(offer.resources, "cpus")
             if self.required_cpus > cpu:
                 accept = False
         if self.required_memory != 0:
-            mem = self.__getResource(offer.resources, "mem")
+            mem = self._getResource(offer.resources, "mem")
             if self.required_memory > mem:
                 accept = False
         if(accept == True):
-            self.__updateResource(offer.resources, "cpus", self.required_cpus)
-            self.__updateResource(offer.resources, "mem", self.required_memory)
+            self._updateResource(offer.resources, "cpus", self.required_cpus)
+            self._updateResource(offer.resources, "mem", self.required_memory)
 
         return accept
 
