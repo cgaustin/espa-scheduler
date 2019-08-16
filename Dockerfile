@@ -10,4 +10,6 @@ COPY resources/requirements.txt requirements.txt
 RUN python3 -m pip install git+https://github.com/benoitc/http-parser
 RUN python3 -m pip install -r requirements.txt
 
+ENV PYTHONPATH /
+
 ENTRYPOINT ["/usr/bin/python3", "scheduler/main.py"]
