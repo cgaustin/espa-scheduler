@@ -12,8 +12,18 @@ import uuid
 
 from scheduler import config, espa, task, util
 
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+info_handler = logging.StreamHandler(sys.stdout)
+info_handler.setLevel(logging.INFO)
+
+warn_handler = logging.StreamHandler(sys.stderr)
+warn_handler.setLevel(logging.WARN)
+
+logger.addHandler(info_handler)
+logger.addHandler(warn_handler)
 
 
 class EspaScheduler(pymesos.Scheduler):
@@ -125,6 +135,7 @@ class EspaScheduler(pymesos.Scheduler):
                 task_id  = "{}_@@@_{}".format(work.get('orderid'), work.get('scene'))
                 new_task = task.build(task_id, offer, self.task_image, 
                                       self.required_cpus, self.required_memory, work, self.cfg)
+                logger.debug("New Task definition: {}".format(new_task))
                 driver.launchTasks([offer.id], [new_task])
                 response.offers.accepted += 1
             else: # decline the offer

@@ -1,9 +1,22 @@
 import json
 import requests
 import logging
-
+import sys
 
 logging.getLogger('requests').setLevel(logging.WARNING)
+
+#logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+info_handler = logging.StreamHandler(sys.stdout)
+info_handler.setLevel(logging.INFO)
+
+warn_handler = logging.StreamHandler(sys.stderr)
+warn_handler.setLevel(logging.WARN)
+
+logger.addHandler(info_handler)
+logger.addHandler(warn_handler)
 
 
 class APIException(Exception):
@@ -92,6 +105,8 @@ class APIServer(object):
 
         resp, status = self.request('post', url, json=data_dict, status=200)
 
+        logger.debug("ESPA API update_status call. data: {},  status: {},  response: {} ".format(data_dict, status, resp))
+
         return {"response": resp, "status": status, "data": data_dict}
 
     def set_to_scheduled(self, unit):
@@ -120,6 +135,7 @@ class APIServer(object):
 
         resp, status = self.request('post', url, json=data_dict, status=200)
 
+        logger.debug("ESPA API set_scene_error call. data: {},  status: {},  response: {} ".format(data_dict, status, resp))
         return {"response": resp, "status": status, "data": data_dict}
 
     def get_products_to_process(self, product_type, limit, user=None, priority=None):
@@ -144,13 +160,13 @@ class APIServer(object):
         url = '/products?{}'.format(query)
 
         resp, status = self.request('get', url, status=200)
-
+        logger.debug("ESPA API get_products_to_process call. data: {},  status: {},  response: {} ".format(params, status, resp))
         return {"products": resp, "url": url}
 
     def handle_orders(self):
         url = '/handle-orders'
         resp, status = self.request('get', url, status=200)
-
+        logger.debug("ESPA API handle_orders call. status: {},  response: {} ".format(status, resp))
         return status == 200
 
     def mesos_tasks_disabled(self):
