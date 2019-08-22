@@ -39,5 +39,6 @@ def config():
         de('aux_dir', None), # name required by processing libs
         de('storage_mount', None),
         de('espa_storage', None), # name required by processing libs
-        de('aster_ged_server_name', None)
+        de('aster_ged_server_name', None),
+        de('handle_orders_frequency', 7, int)
     ])

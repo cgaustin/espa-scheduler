@@ -1,25 +1,22 @@
-import sys
-import uuid
-import socket
-import os
-import signal
+import addict
 import logging
-
-from scheduler.config import config
-import scheduler.espa as espa
-import scheduler.task as task
-from scheduler.util import right_now
-
-from pymesos import MesosSchedulerDriver, Scheduler, encode_data
-from addict import Dict
+from multiprocessing import Process
+import os
+import pymesos
+import schedule
+import signal
+import socket
+import sys
 from threading import Thread
-from copy import deepcopy
+import uuid
+
+from scheduler import config, espa, task, util
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-class EspaScheduler(Scheduler):
+class EspaScheduler(pymesos.Scheduler):
     def __init__(self, cfg, espa_api):
         self.workList        = []
         self.runningList     = {}
@@ -78,7 +75,7 @@ class EspaScheduler(Scheduler):
 
     def resourceOffers(self, driver, offers):
         logger.debug("Received new offers...")
-        response = Dict()
+        response = addict.Dict()
         response.offers.length = len(offers)
         response.offers.accepted = 0
         response.offers.declined = 0
@@ -121,11 +118,11 @@ class EspaScheduler(Scheduler):
 
         # we have work to do, check if there are usable offers
         for offer in offers:
-            if self.acceptOffer(offer):
+            if self.acceptOffer(offer) and self.workList:
                 logger.debug("Acceptable offer received..")
                 # pull off a unit of work
                 work     = self.workList.pop(0)
-                task_id  = "{}-{}".format(work.get('orderid'), work.get('scene'))
+                task_id  = "{}_@@@_{}".format(work.get('orderid'), work.get('scene'))
                 new_task = task.build(task_id, offer, self.task_image, 
                                       self.required_cpus, self.required_memory, work, self.cfg)
                 driver.launchTasks([offer.id], [new_task])
@@ -140,10 +137,10 @@ class EspaScheduler(Scheduler):
         # possible state values
         # http://mesos.apache.org/api/latest/java/org/apache/mesos/Protos.TaskState.html
         task_id = update.task_id.value
-        orderid, scene = task_id.split("-")
+        orderid, scene = task_id.split("_@@@_")
         state = update.state
 
-        response = Dict()
+        response = addict.Dict()
         response.task_id = task_id
         response.state = state
 
@@ -154,7 +151,7 @@ class EspaScheduler(Scheduler):
             if state == "TASK_RUNNING":
                 response.list.name = "running"
                 if task_id not in self.runningList:
-                    self.runningList[task_id] = right_now()
+                    self.runningList[task_id] = util.right_now()
                     response.list.status = "new"
                 else:
                     response.list.status = "current"
@@ -176,7 +173,7 @@ class EspaScheduler(Scheduler):
 
 
 def get_framework(cfg):
-    framework = Dict()
+    framework = addict.Dict()
     framework.user = cfg.get('mesos_user')
     framework.id.value = str(uuid.uuid4())
     framework.name = "ESPAScheduler"
@@ -184,9 +181,14 @@ def get_framework(cfg):
     framework.failover_timeout = 75 # whats sensible ?
     return framework
 
-def main():
+def handle_orders(cfg, api):
+    frequency = cfg.get('handle_orders_frequency')
+    schedule.every(frequency).minutes.do(api.handle_orders)
+    while True:
+        schedule.run_pending()
 
-    cfg       = config()
+def main():
+    cfg       = config.config()
     espa_api  = espa.api_connect(cfg)
     framework = get_framework(cfg)
     scheduler = EspaScheduler(cfg, espa_api)
@@ -194,11 +196,17 @@ def main():
     principal = cfg.get('mesos_principal')
     secret    = cfg.get('mesos_secret')
 
-    driver = MesosSchedulerDriver(scheduler, framework, master,
-                                  use_addict=True,
-                                  principal=principal,
-                                  secret=secret)
-    driver.run()
+    driver = pymesos.MesosSchedulerDriver(scheduler, framework, master,
+                                          use_addict=True,
+                                          principal=principal,
+                                          secret=secret)
+
+    driver_run   = Process(target=driver.run)
+    schedule_run = Process(target=handle_orders, args=(cfg, espa_api,))
+
+    schedule_run.start()
+    driver_run.start()
+    
 
 if __name__ == '__main__':
     main()

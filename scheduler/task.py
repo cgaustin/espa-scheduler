@@ -1,4 +1,5 @@
 from addict import Dict
+import json
 
 def env_vars(cfg):
     """Return list of dicts defining task environment vars"""
@@ -24,7 +25,7 @@ def resources(cpus, memory):
 
 def command(work_json):
     """Return formatted command for the task container"""
-    cmd = "main.py {}".format(work_json)
+    cmd = "python /processing/main.py '{}'".format(json.dumps(work_json).replace(' ', ''))
     return cmd
 
 def build(id, offer, image_name, cpu, mem, work, cfg):
@@ -36,6 +37,6 @@ def build(id, offer, image_name, cpu, mem, work, cfg):
     task.container.docker.image = image_name
     task.container.volumes      = volumes(cfg)
     task.resources              = resources(cpu, mem) 
-    task.command.value          = command(work)
+    task.command.value          = command(work) #"echo espa-task && sleep 500"
     task.command.environment.variables = env_vars(cfg)
     return task

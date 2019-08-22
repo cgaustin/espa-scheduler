@@ -25,5 +25,5 @@ class TestConfig(unittest.TestCase):
                          ['mesos_principal', 'mesos_secret', 'mesos_master', 'mesos_user', 'product_frequency', 
                           'espa_api', 'product_request_count', 'max_cpu', 'task_cpu', 'task_mem', 'task_image', 
                           'offer_refuse_seconds', 'auxiliary_mount', 'aux_dir', 'storage_mount', 'espa_storage', 
-                          'aster_ged_server_name'])
+                          'aster_ged_server_name', 'handle_orders_frequency'])
 

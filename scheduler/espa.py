@@ -1,3 +1,4 @@
+import json
 import requests
 import logging
 
@@ -115,7 +116,7 @@ class APIServer(object):
         data_dict = {'name': prod_id,
                      'orderid': order_id,
                      'processing_loc': self.image,
-                     'error': data}
+                     'error': json.dumps(data)}
 
         resp, status = self.request('post', url, json=data_dict, status=200)
 
@@ -145,6 +146,12 @@ class APIServer(object):
         resp, status = self.request('get', url, status=200)
 
         return {"products": resp, "url": url}
+
+    def handle_orders(self):
+        url = '/handle-orders'
+        resp, status = self.request('get', url, status=200)
+
+        return status == 200
 
     def mesos_tasks_disabled(self):
         run = self.get_configuration('run_mesos_tasks')
