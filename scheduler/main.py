@@ -200,7 +200,7 @@ def handle_orders(cfg, api):
 
 def main():
     cfg       = config.config()
-    espa_api  = espa.api_connect(cfg)
+    espa_api  = espa.api_connect(cfg, logger)
     framework = get_framework(cfg)
     scheduler = EspaScheduler(cfg, espa_api)
     master    = cfg.get('mesos_master') 

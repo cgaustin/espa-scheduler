@@ -48,7 +48,7 @@ class TestTask(unittest.TestCase):
     def test_command(self):
         work_json = {"foo": 1}
         command = task.command(work_json)
-        expected = 'python /processing/main.py \'{"foo":1}\''
+        expected = 'python /processing/main.py \'[{"foo":1}]\''
         self.assertEqual(command, expected)
 
     def test_build(self):
@@ -77,7 +77,7 @@ class TestTask(unittest.TestCase):
                                       {"container_path": "/espa-storage", "host_path": "/usr/local/storage", "mode": "RW"}]
         expected.resources = [{'name':'cpus', 'type':'SCALAR', 'scalar':{'value': 1}},
                               {'name':'mem' , 'type':'SCALAR', 'scalar':{'value': 5120}}]
-        expected.command.value = "python /processing/main.py '{\"foo\":1}'"
+        expected.command.value = "python /processing/main.py '[{\"foo\":1}]'"
         expected.command.environment.variables = [{"name":"ESPA_STORAGE",          "value":"/espa-storage"},
                                                   {"name":"ESPA_API",              "value":"http://127.0.0.1:9876"},
                                                   {"name":"ASTER_GED_SERVER_NAME", "value":"http://127.0.0.1:8888"},

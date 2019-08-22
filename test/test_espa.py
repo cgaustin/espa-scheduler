@@ -5,6 +5,7 @@ import requests
 import requests_mock
 import unittest
 
+from unittest.mock import Mock
 from mock import patch
 
 from scheduler.espa import api_connect, APIServer, APIException
@@ -14,7 +15,7 @@ class TestEspa(unittest.TestCase):
     def setUp(self):
         self.host = "http://localhost:1234"
         self.image = "usgseros/espa-scheduler:latest"
-        self.api = APIServer(self.host, self.image)
+        self.api = APIServer(self.host, self.image, Mock())
 
     @requests_mock.mock()
     def test_request(self, m):
@@ -99,6 +100,6 @@ class TestEspa(unittest.TestCase):
     @requests_mock.mock()
     def test_api_connect(self, m):
         m.get(self.host, json={"foo": 1})
-        api = api_connect({"espa_api": self.host, "task_image": self.image})
+        api = api_connect({"espa_api": self.host, "task_image": self.image}, Mock())
         self.assertEqual(api.base, self.host)
         self.assertEqual(api.image, self.image)
