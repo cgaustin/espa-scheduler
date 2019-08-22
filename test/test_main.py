@@ -120,13 +120,13 @@ class TestMain(unittest.TestCase):
     def test_statusUpdate(self):
         driver = Mock()
         update = Dict()
-        update.task_id.value = "orderid-unitid"
+        update.task_id.value = "orderid_@@@_unitid"
         update.state = "TASK_RUNNING"
 
         resp = self.scheduler.statusUpdate(driver, update)
 
         self.assertEqual(resp.status, "healthy")
-        self.assertEqual(resp.task_id, "orderid-unitid")
+        self.assertEqual(resp.task_id, "orderid_@@@_unitid")
         self.assertEqual(resp.state, update.state)
         self.assertEqual(resp.list.name, "running")
         self.assertEqual(resp.list.status, "new")

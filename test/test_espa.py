@@ -69,9 +69,9 @@ class TestEspa(unittest.TestCase):
     @requests_mock.mock()
     def test_set_scene_error(self, m):
         m.post("{}/set_product_error".format(self.host), json={"foo": 1})
-        resp = self.api.set_scene_error("L71234EDC", "espa-frodo@shire.com-1234", "error")
+        resp = self.api.set_scene_error("L71234EDC", "espa-frodo@shire.com-1234", 'error')
         self.assertEqual(list(resp.keys()), ["response", "status", "data"])
-        self.assertEqual(resp['data'], {"name": "L71234EDC", "orderid": "espa-frodo@shire.com-1234", "processing_loc": self.image, "error": "error"})
+        self.assertEqual(resp['data'], {"name": "L71234EDC", "orderid": "espa-frodo@shire.com-1234", "processing_loc": self.image, "error": '"error"'})
 
     @requests_mock.mock()
     def test_get_products_to_process(self, m):
