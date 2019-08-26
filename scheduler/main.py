@@ -1,5 +1,5 @@
 import addict
-import logging
+
 from multiprocessing import Process
 import os
 import pymesos
@@ -10,21 +10,9 @@ import sys
 from threading import Thread
 import uuid
 
-from scheduler import config, espa, task, util
+from scheduler import config, espa, logger, task, util
 
-#logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
-info_handler = logging.StreamHandler(sys.stdout)
-info_handler.setLevel(logging.INFO)
-
-warn_handler = logging.StreamHandler(sys.stderr)
-warn_handler.setLevel(logging.WARN)
-
-logger.addHandler(info_handler)
-logger.addHandler(warn_handler)
-
+log = logger.get_logger()
 
 class EspaScheduler(pymesos.Scheduler):
     def __init__(self, cfg, espa_api):
@@ -78,13 +66,13 @@ class EspaScheduler(pymesos.Scheduler):
         resp = False
 
         if core_utilization >= self.max_cpus:
-            logger.debug("Max number of cores being used")
+            log.debug("Max number of cores being used")
             resp = True
 
         return resp
 
     def resourceOffers(self, driver, offers):
-        logger.debug("Received new offers...")
+        log.debug("Received new offers...")
         response = addict.Dict()
         response.offers.length = len(offers)
         response.offers.accepted = 0
@@ -110,7 +98,7 @@ class EspaScheduler(pymesos.Scheduler):
 
             # if units are emtpy...
             if not units:
-                logger.info("No work to do for product_type: {}, declining offers!".format(product_type))
+                log.info("No work to do for product_type: {}, declining offers!".format(product_type))
                 # decline the offer, freeing up the resources
                 driver.declineOffer([i.id for i in offers], {'refuse_seconds': self.refuse_seconds}) 
                 # there's no work to do, return
@@ -129,13 +117,13 @@ class EspaScheduler(pymesos.Scheduler):
         # we have work to do, check if there are usable offers
         for offer in offers:
             if self.acceptOffer(offer) and self.workList:
-                logger.debug("Acceptable offer received..")
+                log.debug("Acceptable offer received..")
                 # pull off a unit of work
                 work     = self.workList.pop(0)
                 task_id  = "{}_@@@_{}".format(work.get('orderid'), work.get('scene'))
                 new_task = task.build(task_id, offer, self.task_image, 
                                       self.required_cpus, self.required_memory, work, self.cfg)
-                logger.debug("New Task definition: {}".format(new_task))
+                log.debug("New Task definition: {}".format(new_task))
                 driver.launchTasks([offer.id], [new_task])
                 response.offers.accepted += 1
             else: # decline the offer
@@ -156,7 +144,7 @@ class EspaScheduler(pymesos.Scheduler):
         response.state = state
 
         if state in self.healthy_states:
-            logger.debug("status update for: {}  new status: {}".format(task_id, state))
+            log.debug("status update for: {}  new status: {}".format(task_id, state))
             response.status = "healthy"
 
             if state == "TASK_RUNNING":
@@ -171,10 +159,10 @@ class EspaScheduler(pymesos.Scheduler):
                 try:
                     self.runningList.__delitem__(task_id)
                 except KeyError:
-                    logger.debug("Received TASK_FINISHED update for {}, which wasn't in the runningList".format(task_id))
+                    log.debug("Received TASK_FINISHED update for {}, which wasn't in the runningList".format(task_id))
 
         else: # something abnormal happened
-            logger.error("abnormal task state for: {}, full update: {}".format(task_id, update))
+            log.error("abnormal task state for: {}, full update: {}".format(task_id, update))
             response.status = "unhealthy"
             self.espa.set_scene_error(scene, orderid, update)
             if task_id in self.runningList:
@@ -200,7 +188,7 @@ def handle_orders(cfg, api):
 
 def main():
     cfg       = config.config()
-    espa_api  = espa.api_connect(cfg, logger)
+    espa_api  = espa.api_connect(cfg)
     framework = get_framework(cfg)
     scheduler = EspaScheduler(cfg, espa_api)
     master    = cfg.get('mesos_master') 

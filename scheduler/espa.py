@@ -1,9 +1,9 @@
 import json
+from scheduler import logger
 import requests
-import logging
 import sys
 
-logging.getLogger('requests').setLevel(logging.WARNING)
+log = logger.get_logger()
 
 class APIException(Exception):
     """
@@ -16,10 +16,9 @@ class APIServer(object):
     """
     Simple class for a couple espa-api calls
     """
-    def __init__(self, base_url, image, logger):
+    def __init__(self, base_url, image):
         self.base = base_url
         self.image = image
-        self.logger = logger
 
     def request(self, method, resource=None, status=None, **kwargs):
         """
@@ -92,7 +91,7 @@ class APIServer(object):
 
         resp, status = self.request('post', url, json=data_dict, status=200)
 
-        self.logger.debug("ESPA API update_status call. data: {},  status: {},  response: {} ".format(data_dict, status, resp))
+        log.debug("ESPA API update_status call. data: {},  status: {},  response: {} ".format(data_dict, status, resp))
 
         return {"response": resp, "status": status, "data": data_dict}
 
@@ -122,7 +121,7 @@ class APIServer(object):
 
         resp, status = self.request('post', url, json=data_dict, status=200)
 
-        self.logger.debug("ESPA API set_scene_error call. data: {},  status: {},  response: {} ".format(data_dict, status, resp))
+        log.debug("ESPA API set_scene_error call. data: {},  status: {},  response: {} ".format(data_dict, status, resp))
         return {"response": resp, "status": status, "data": data_dict}
 
     def get_products_to_process(self, product_type, limit, user=None, priority=None):
@@ -147,13 +146,13 @@ class APIServer(object):
         url = '/products?{}'.format(query)
 
         resp, status = self.request('get', url, status=200)
-        self.logger.debug("ESPA API get_products_to_process call. data: {},  status: {},  response: {} ".format(params, status, resp))
+        log.debug("ESPA API get_products_to_process call. data: {},  status: {},  response: {} ".format(params, status, resp))
         return {"products": resp, "url": url}
 
     def handle_orders(self):
         url = '/handle-orders'
         resp, status = self.request('get', url, status=200)
-        self.logger.debug("ESPA API handle_orders call. status: {},  response: {} ".format(status, resp))
+        log.debug("ESPA API handle_orders call. status: {},  response: {} ".format(status, resp))
         return status == 200
 
     def mesos_tasks_disabled(self):
@@ -161,7 +160,7 @@ class APIServer(object):
         if run == 'True':
             resp = False
         else:
-            self.logger.info("Mesos tasks disabled!")
+            log.info("Mesos tasks disabled!")
             resp = True
         return resp
 
@@ -186,7 +185,7 @@ class APIServer(object):
         return True
 
 
-def api_connect(params, logger):
+def api_connect(params):
     """
     Simple lead in method for using the API connection class
 
@@ -198,6 +197,6 @@ def api_connect(params, logger):
     """
     url = params.get('espa_api')
     image = params.get('task_image')
-    api = APIServer(url, image, logger)
+    api = APIServer(url, image)
     api.test_connection() # throws exception if non-200 response to base url
     return api

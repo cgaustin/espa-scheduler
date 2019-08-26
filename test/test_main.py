@@ -22,7 +22,7 @@ class TestMain(unittest.TestCase):
         self.cfg = config()
         
         m.get(self.host, json={"foo": 1})
-        self.api = api_connect({"espa_api": self.host, "task_image": self.image}, Mock())
+        self.api = api_connect({"espa_api": self.host, "task_image": self.image})
         self.scheduler = EspaScheduler(self.cfg, self.api)
 
     def test_get_framework(self):
