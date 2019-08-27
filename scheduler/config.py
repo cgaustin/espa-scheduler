@@ -33,6 +33,7 @@ def config():
         de('max_cpu', 10, int),
         de('task_cpu', 1, float),
         de('task_mem', 5120, int), # 5G
+        de('task_disk', 10240, int), # 10g
         de('task_image', None),
         de('offer_refuse_seconds', 30, int),
         de('auxiliary_mount', None),

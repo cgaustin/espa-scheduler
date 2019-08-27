@@ -18,17 +18,18 @@ def volumes(cfg):
     return [{"container_path": aux_dest,  "host_path": aux_mount,  "mode": "RW"},
             {"container_path": stor_dest, "host_path": stor_mount, "mode": "RW"}]
 
-def resources(cpus, memory):
+def resources(cpus, memory, disk):
     """Return list of task resource dicts"""
     return [{'name':'cpus', 'type':'SCALAR', 'scalar':{'value': cpus}},
-            {'name':'mem' , 'type':'SCALAR', 'scalar':{'value': memory}}]
+            {'name':'mem' , 'type':'SCALAR', 'scalar':{'value': memory}},
+            {'name':'disk', 'type':'SCALAR', 'scalar':{'value': disk}}]
 
 def command(work_json):
     """Return formatted command for the task container"""
     cmd = "python /src/processing/main.py '{}'".format(json.dumps([work_json]).replace(' ', ''))
     return cmd
 
-def build(id, offer, image_name, cpu, mem, work, cfg):
+def build(id, offer, image_name, cpu, mem, disk, work, cfg):
     task                        = Dict()
     task.task_id.value          = id
     task.agent_id.value         = offer.agent_id.value
@@ -36,7 +37,7 @@ def build(id, offer, image_name, cpu, mem, work, cfg):
     task.container.type         = 'DOCKER'
     task.container.docker.image = image_name
     task.container.volumes      = volumes(cfg)
-    task.resources              = resources(cpu, mem) 
+    task.resources              = resources(cpu, mem, disk) 
     task.command.value          = command(work) #"echo espa-task && sleep 500"
     task.command.environment.variables = env_vars(cfg)
     return task

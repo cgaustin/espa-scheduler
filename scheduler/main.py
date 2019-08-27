@@ -21,6 +21,7 @@ class EspaScheduler(pymesos.Scheduler):
         self.max_cpus        = cfg.get('max_cpu')
         self.required_cpus   = cfg.get('task_cpu')
         self.required_memory = cfg.get('task_mem')
+        self.required_disk   = cfg.get('task_disk')
         self.task_image      = cfg.get('task_image')
         self.refuse_seconds  = cfg.get('offer_refuse_seconds')
         self.request_count   = cfg.get('product_request_count')
@@ -52,6 +53,10 @@ class EspaScheduler(pymesos.Scheduler):
         if self.required_memory != 0:
             mem = self._getResource(offer.resources, "mem")
             if self.required_memory > mem:
+                accept = False
+        if self.required_disk != 0:
+            disk = self._getResource(offer.resources, "disk")
+            if self.required_disk > disk:
                 accept = False
         if(accept == True):
             self._updateResource(offer.resources, "cpus", self.required_cpus)
@@ -122,8 +127,8 @@ class EspaScheduler(pymesos.Scheduler):
                 # pull off a unit of work
                 work     = self.workList.pop(0)
                 task_id  = "{}_@@@_{}".format(work.get('orderid'), work.get('scene'))
-                new_task = task.build(task_id, offer, self.task_image, 
-                                      self.required_cpus, self.required_memory, work, self.cfg)
+                new_task = task.build(task_id, offer, self.task_image, self.required_cpus, 
+                                      self.required_memory, self.required_disk, work, self.cfg)
                 log.debug("New Task definition: {}".format(new_task))
                 driver.launchTasks([offer.id], [new_task])
                 response.offers.accepted += 1

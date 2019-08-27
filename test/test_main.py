@@ -44,12 +44,16 @@ class TestMain(unittest.TestCase):
         self.assertEqual(resource.scalar.value, 4096)
 
     def test_acceptOffer(self):
-        cpu_resource_good = Dict()
-        mem_resource_good = Dict()
-        mem_resource_bad  = Dict()
+        cpu_resource_good  = Dict()
+        disk_resource_good = Dict()
+        mem_resource_good  = Dict()
+        mem_resource_bad   = Dict()
         
         cpu_resource_good.name = "cpus"
         cpu_resource_good.scalar.value = 8
+
+        disk_resource_good.name = "disk"
+        disk_resource_good.scalar.value = 10240
 
         mem_resource_good.name = "mem"
         mem_resource_good.scalar.value = 10240
@@ -58,7 +62,7 @@ class TestMain(unittest.TestCase):
         mem_resource_bad.scalar.value = 1024 # default required 5120
 
         offer_good = Dict()
-        offer_good.resources = [cpu_resource_good, mem_resource_good]
+        offer_good.resources = [cpu_resource_good, mem_resource_good, disk_resource_good]
 
         offer_bad = Dict()
         offer_bad.resources = [cpu_resource_good, mem_resource_bad]
@@ -100,14 +104,17 @@ class TestMain(unittest.TestCase):
     def test_resourceOffer_work(self):
         driver = Mock()
 
-        cpu_resource_good = Dict()
-        mem_resource_good = Dict()
+        cpu_resource_good  = Dict()
+        mem_resource_good  = Dict()
+        disk_resource_good = Dict()
         cpu_resource_good.name = "cpus"
         cpu_resource_good.scalar.value = 8
         mem_resource_good.name = "mem"
         mem_resource_good.scalar.value = 10240
+        disk_resource_good.name = "disk"
+        disk_resource_good.scalar.value = 10240
         offer_good = Dict()
-        offer_good.resources = [cpu_resource_good, mem_resource_good]
+        offer_good.resources = [cpu_resource_good, mem_resource_good, disk_resource_good]
 
         offers = [offer_good]
 
