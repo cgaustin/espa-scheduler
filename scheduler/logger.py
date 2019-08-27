@@ -11,6 +11,7 @@ def get_logger():
     formatter = logging.Formatter('%(asctime)-15s %(levelname)-9s - %(message)s')
 
     logger = logging.getLogger('scheduler')
+    logger.setLevel(log_level)
 
     info_handler = logging.StreamHandler(sys.stdout)
     info_handler.setLevel(log_level)
