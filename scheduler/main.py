@@ -105,6 +105,7 @@ class EspaScheduler(pymesos.Scheduler):
                 response.work.length = 0
                 return response
             else:
+                log.info("Work to do for product_type: {}, count: {}".format(product_type, len(units)))
                 for u in units:
                     # update retrieved products in espa to scheduled status
                     self.espa.set_to_scheduled(u)
@@ -117,7 +118,7 @@ class EspaScheduler(pymesos.Scheduler):
         # we have work to do, check if there are usable offers
         for offer in offers:
             if self.acceptOffer(offer) and self.workList:
-                log.debug("Acceptable offer received..")
+                log.debug("Accepting offer")
                 # pull off a unit of work
                 work     = self.workList.pop(0)
                 task_id  = "{}_@@@_{}".format(work.get('orderid'), work.get('scene'))
@@ -127,9 +128,11 @@ class EspaScheduler(pymesos.Scheduler):
                 driver.launchTasks([offer.id], [new_task])
                 response.offers.accepted += 1
             else: # decline the offer
+                log.debug("Declining offer")
                 driver.declineOffer([offer.id])
                 response.offers.declined += 1
 
+        log.debug("resourceOffer response: {}".format(response))
         return response
                     
     def statusUpdate(self, driver, update):
