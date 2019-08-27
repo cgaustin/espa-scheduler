@@ -46,6 +46,7 @@ requests-mock==1.6.0
 schedule==0.6.0
 Send2Trash==1.5.0
 six==1.12.0
+tenacity==5.1.1
 terminado==0.8.2
 testpath==0.4.2
 tornado==6.0.3
