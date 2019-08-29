@@ -42,5 +42,8 @@ def config():
         de('espa_storage', None), # name required by processing libs
         de('aster_ged_server_name', None),
         de('handle_orders_frequency', 7, int),
-        de('log_level', 'debug')
+        de('log_level', 'debug'),
+        de('urs_machine', 'machine'), # these urs_* values provide auth to nasa earthdata
+        de('urs_login', 'login'),
+        de('urs_password', 'password')
     ])
