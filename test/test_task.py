@@ -16,14 +16,20 @@ class TestTask(unittest.TestCase):
         cfg = {"espa_storage": "/espa-storage",
                "espa_api": "http://127.0.0.1:9876",
                "aster_ged_server_name": "http://127.0.0.1:8888",
-               "aux_dir": "/espa-aux"}
+               "aux_dir": "/espa-aux",
+               "urs_machine": "urs",
+               "urs_login": "uname",
+               "urs_password": "1234"}
 
         envvars = task.env_vars(cfg)
 
         expected = [{"name":"ESPA_STORAGE",          "value":"/espa-storage"},
                     {"name":"ESPA_API",              "value":"http://127.0.0.1:9876"},
                     {"name":"ASTER_GED_SERVER_NAME", "value":"http://127.0.0.1:8888"},
-                    {"name":"AUX_DIR",               "value":"/espa-aux"}]
+                    {"name":"AUX_DIR",               "value":"/espa-aux"},
+                    {"name":"URS_MACHINE",           "value":"urs"},
+                    {"name":"URS_LOGIN",             "value":"uname"},
+                    {"name":"URS_PASSWORD",          "value":"1234"}]
 
         self.assertEqual(envvars, expected)
 
@@ -66,7 +72,10 @@ class TestTask(unittest.TestCase):
                "aster_ged_server_name": "http://127.0.0.1:8888",
                "aux_dir": "/espa-aux",
                "auxiliary_mount": "/usr/local/aux",
-               "storage_mount": "/usr/local/storage"} 
+               "storage_mount": "/usr/local/storage",
+               "urs_machine": "urs",
+               "urs_login": "uname",
+               "urs_password": "1234"}
 
         build = task.build("orderid_scenename", offer, image_name, cpu, mem, disk, work, cfg)
 
@@ -85,7 +94,10 @@ class TestTask(unittest.TestCase):
         expected.command.environment.variables = [{"name":"ESPA_STORAGE",          "value":"/espa-storage"},
                                                   {"name":"ESPA_API",              "value":"http://127.0.0.1:9876"},
                                                   {"name":"ASTER_GED_SERVER_NAME", "value":"http://127.0.0.1:8888"},
-                                                  {"name":"AUX_DIR",               "value":"/espa-aux"}]
+                                                  {"name":"AUX_DIR",               "value":"/espa-aux"},
+                                                  {"name":"URS_MACHINE",           "value":"urs"},
+                                                  {"name":"URS_LOGIN",             "value":"uname"},
+                                                  {"name":"URS_PASSWORD",          "value":"1234"}]
 
         self.assertEqual(build, expected)
 

@@ -6,7 +6,10 @@ def env_vars(cfg):
     return [{"name":"ESPA_STORAGE",          "value":cfg.get('espa_storage')},
             {"name":"ESPA_API",              "value":cfg.get('espa_api')},
             {"name":"ASTER_GED_SERVER_NAME", "value":cfg.get('aster_ged_server_name')},
-            {"name":"AUX_DIR",               "value":cfg.get('aux_dir')}]
+            {"name":"AUX_DIR",               "value":cfg.get('aux_dir')},
+            {"name":"URS_MACHINE",           "value":cfg.get('urs_machine')},
+            {"name":"URS_LOGIN",             "value":cfg.get('urs_login')},
+            {"name":"URS_PASSWORD",          "value":cfg.get('urs_password')}]
 
 def volumes(cfg):
     """Return list of dicts defining task container volumes"""
