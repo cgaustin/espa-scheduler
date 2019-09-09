@@ -35,7 +35,7 @@ def command(work_json):
 def build(id, offer, image_name, cpu, mem, disk, work, cfg):
     task                        = Dict()
     task.task_id.value          = id
-    task.agent_id.value         = offer.agent_id.value
+    task.agent_id.value         = offer['agent_id']['value']
     task.name                   = 'task {}'.format(id)
     task.container.type         = 'DOCKER'
     task.container.docker.image = image_name
