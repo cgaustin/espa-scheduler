@@ -10,6 +10,7 @@ mesoshttp==0.3.2
 pycparser==2.19
 PyJWT==1.7.1
 requests==2.22.0
+requests-mock==1.7.0
 schedule==0.6.0
 six==1.12.0
 tenacity==5.1.1
