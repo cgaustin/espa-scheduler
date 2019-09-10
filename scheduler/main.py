@@ -30,6 +30,7 @@ class ESPAFramework(object):
         self.cfg  = cfg
 
         self.client = MesosClient(mesos_urls=[master])
+        self.client.verify = False
         self.client.set_credentials(principal, secret)
         self.client.on(MesosClient.SUBSCRIBED, self.subscribed)
         self.client.on(MesosClient.OFFERS, self.offer_received)
