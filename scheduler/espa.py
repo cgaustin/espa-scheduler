@@ -178,6 +178,7 @@ class APIServer(object):
         try:
             run = self.get_configuration('run_mesos_tasks')
             if run == 'True':
+                log.debug('Mesos tasks enabled in ESPA')
                 resp = False
             else:
                 log.info("Mesos tasks disabled!")

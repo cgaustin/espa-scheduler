@@ -56,8 +56,9 @@ class ESPAFramework(object):
         core_utilization = running_count * task_core_count
         resp = False
 
+        log.debug("Number of cores being used: {}".format(core_utilization))
         if core_utilization >= self.max_cpus:
-            log.debug("Max number of cores being used")
+            log.debug("Max number of cores being used. Max = {}".format(self.max_cpus))
             resp = True
 
         return resp
@@ -66,7 +67,7 @@ class ESPAFramework(object):
         log.warning('SUBSCRIBED')
         self.driver = driver
 
-    def acceptOffer(self, offer):
+    def accept_offer(self, offer):
         accept = True
         if self.required_cpus != 0:
             cpu = self._getResource(offer['resources'], "cpus")
@@ -86,17 +87,23 @@ class ESPAFramework(object):
 
         return accept
 
+    def decline_offer(self, offer):
+        options = {'filters': {'refuse_seconds': self.refuse_seconds}}
+        log.debug("declining offer with filter: {}".format(options))
+        offer.decline(options)
+        return True        
+
     def offer_received(self, offers):
-        log.debug("Received new offers...")
         response = addict.Dict()
         response.offers.length = len(offers)
         response.offers.accepted = 0
         response.offers.declined = 0
+        log.debug("Received {} new offers...".format(response.offers.length))
 
         # check to see if any more tasks should be launched
         if self.espa.mesos_tasks_disabled() or self.core_limit_reached():
             # decline the offers to free up the resources
-            [offer.decline({'filters': {'refuse_seconds': self.refuse_seconds}}) for offer in offers]
+            [self.decline_offer(offer) for offer in offers]
             response.tasks.enabled = False
             return response
         else:
@@ -115,7 +122,7 @@ class ESPAFramework(object):
             if not units:
                 log.info("No work to do for product_type: {}, declining offers!".format(product_type))
                 # decline the offer, freeing up the resources
-                [offer.decline({'filters': {'refuse_seconds': self.refuse_seconds}}) for offer in offers]
+                [self.decline_offer(offer) for offer in offers]
                 # there's no work to do, return
                 response.work.length = 0
                 return response
@@ -133,7 +140,7 @@ class ESPAFramework(object):
         # we have work to do, check if there are usable offers
         for offer in offers:
             mesos_offer = offer.get_offer()
-            if self.acceptOffer(mesos_offer) and self.workList:
+            if self.accept_offer(mesos_offer) and self.workList:
                 log.debug("Accepting offer")
                 # pull off a unit of work
                 work     = self.workList.pop(0)

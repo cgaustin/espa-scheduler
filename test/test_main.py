@@ -40,7 +40,7 @@ class TestMain(unittest.TestCase):
         self.framework._updateResource([resource], "mem", 1024)
         self.assertEqual(resource.scalar.value, 4096)
 
-    def test_acceptOffer(self):
+    def test_accept_offer(self):
         cpu_resource_good  = Dict()
         disk_resource_good = Dict()
         mem_resource_good  = Dict()
@@ -64,8 +64,8 @@ class TestMain(unittest.TestCase):
         offer_bad = Dict()
         offer_bad.resources = [cpu_resource_good, mem_resource_bad]
 
-        self.assertTrue(self.framework.acceptOffer(offer_good))
-        self.assertFalse(self.framework.acceptOffer(offer_bad))
+        self.assertTrue(self.framework.accept_offer(offer_good))
+        self.assertFalse(self.framework.accept_offer(offer_bad))
 
     def test_core_limit_reached(self):
         framework = self.framework
@@ -98,7 +98,7 @@ class TestMain(unittest.TestCase):
     @patch('scheduler.espa.APIServer.mesos_tasks_disabled', lambda i: False)
     @patch('scheduler.espa.APIServer.get_products_to_process', lambda a, b, c: {"products": [{"orderid": "foo@manchu.com-123", "sceneid": "L8BBCC"}, {"orderid": "foo@manchu.com-123", "sceneid": "L7BBCC"}]})
     @patch('scheduler.espa.APIServer.set_to_scheduled', lambda a, b: True)
-    @patch('scheduler.main.ESPAFramework.acceptOffer', lambda a, b: True)
+    @patch('scheduler.main.ESPAFramework.accept_offer', lambda a, b: True)
     @patch('scheduler.task.build', lambda a, b, c, d, e, f, g, h: {'agent_id': {'value': 'foo'}})
     def test_offer_received_work(self):
         driver = Mock()
