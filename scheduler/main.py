@@ -1,5 +1,5 @@
 import addict
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 import os
 import schedule
 from mesoshttp.client import MesosClient
@@ -10,12 +10,12 @@ log = logger.get_logger()
 
 class ESPAFramework(object):
 
-    def __init__(self, cfg, espa_api):
+    def __init__(self, cfg, espa_api, worklist):
         master    = cfg.get('mesos_master') 
         principal = cfg.get('mesos_principal')
         secret    = cfg.get('mesos_secret')
 
-        self.workList        = []
+        self.workList        = worklist
         self.runningList     = {}
         self.max_cpus        = cfg.get('max_cpu')
         self.required_cpus   = cfg.get('task_cpu')
@@ -108,7 +108,7 @@ class ESPAFramework(object):
         else:
             response.tasks.enabled = True
 
-        if self.workList:
+        if not self.workList.empty():
             log.debug("Work to do, check for acceptable offers")
             
             for offer in offers:
@@ -116,7 +116,7 @@ class ESPAFramework(object):
                 if self.accept_offer(mesos_offer) and self.workList:
                     log.debug("Accepting offer")
                     # pull off a unit of work
-                    work     = self.workList.pop(0)
+                    work     = self.workList.get()
                     task_id  = "{}_@@@_{}".format(work.get('orderid'), work.get('scene'))
                     new_task = task.build(task_id, mesos_offer, self.task_image, self.required_cpus, 
                                           self.required_memory, self.required_disk, work, self.cfg)
@@ -172,38 +172,40 @@ class ESPAFramework(object):
 
         return response
 
-    def get_products_to_process(self):
-        max_scheduled = self.cfg.get('product_scheduled_max')
-        if len(self.workList) < max_scheduled:
-            # pull the first item off the product types list
-            product_type = self.products.pop(0)
-            # get products to process for the product_type
-            units = self.espa.get_products_to_process([product_type], self.request_count).get("products")
-            # put that product type at the back of the list
-            self.products.append(product_type)
+def get_products_to_process(cfg, espa, work_list):
+    max_scheduled = cfg.get('product_scheduled_max')
+    products = cfg.get('product_frequency')
+    request_count = cfg.get('product_request_count')
 
-            # if units are emtpy...
-            if not units:
-                log.info("No work to do for product_type: {}".format(product_type))
-            else:
-                log.info("Work to do for product_type: {}, count: {}, appending to work list".format(product_type, len(units)))
-                for u in units:
-                    # update retrieved products in espa to scheduled status
-                    self.espa.set_to_scheduled(u)
-                    # add the units of work to the workList
-                    self.workList.append(u)
+    if work_list.qsize() < max_scheduled:
+        # pull the first item off the product types list
+        product_type = products.pop(0)
+        # get products to process for the product_type
+        units = espa.get_products_to_process([product_type], request_count).get("products")
+        # put that product type at the back of the list
+        products.append(product_type)
+
+        # if units are emtpy...
+        if not units:
+            log.info("No work to do for product_type: {}".format(product_type))
         else:
-            log.info("Max number of tasks scheduled, not requesting more products to process")
+            log.info("Work to do for product_type: {}, count: {}, appending to work list".format(product_type, len(units)))
+            for u in units:
+                # update retrieved products in espa to scheduled status
+                espa.set_to_scheduled(u)
+                # add the units of work to the workList
+                work_list.put(u)
+    else:
+        log.info("Max number of tasks scheduled, not requesting more products to process")
         
-        return True
+    return True
 
-    def request_work(self):
-        frequency = self.cfg.get('product_request_frequency')
-        log.debug("calling get_products_to_process with frequency: {} minutes".format(frequency))
-
-        schedule.every(frequency).minutes.do(self.get_products_to_process)
-        while True:
-            schedule.run_pending()
+def request_work(cfg, espa, work_list):
+    frequency = cfg.get('product_request_frequency')
+    log.debug("calling get_products_to_process with frequency: {} minutes".format(frequency))
+    schedule.every(frequency).minutes.do(get_products_to_process, cfg=cfg, espa=espa, work_list=work_list)
+    while True:
+        schedule.run_pending()
 
 
 def handle_orders(cfg, api):
@@ -216,10 +218,11 @@ def handle_orders(cfg, api):
 def main():
     cfg       = config.config()    
     espa_api  = espa.api_connect(cfg)
-    framework = ESPAFramework(cfg, espa_api)
+    work_list = Queue()
+    framework = ESPAFramework(cfg, espa_api, work_list)
 
     framework_process = Process(target=framework.client.register)
-    requests_process  = Process(target=framework.request_work)
+    requests_process  = Process(target=request_work, args=(cfg, espa_api, work_list,))
     schedule_process  = Process(target=handle_orders, args=(cfg, espa_api,))
 
     schedule_process.start()
