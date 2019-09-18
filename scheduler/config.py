@@ -30,6 +30,8 @@ def config():
         ['product_frequency', product_frequency()],
         de('espa_api', 'http://localhost:9876/production-api/v0'),
         de('product_request_count', 50, int),
+        de('product_request_frequency', 2, int),
+        de('product_scheduled_max', 200, int),
         de('max_cpu', 10, int),
         de('task_cpu', 1, float),
         de('task_mem', 5120, int), # 5G

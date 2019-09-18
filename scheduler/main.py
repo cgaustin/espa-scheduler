@@ -97,7 +97,6 @@ class ESPAFramework(object):
         response = addict.Dict()
         response.offers.length = len(offers)
         response.offers.accepted = 0
-        response.offers.declined = 0
         log.debug("Received {} new offers...".format(response.offers.length))
 
         # check to see if any more tasks should be launched
@@ -109,53 +108,28 @@ class ESPAFramework(object):
         else:
             response.tasks.enabled = True
 
-        # if workList is empty, try re-populating it
-        if not self.workList:
-            # pull the first item off the product types list
-            product_type = self.products.pop(0)
-            # get products to process for the product_type
-            units = self.espa.get_products_to_process([product_type], self.request_count).get("products")
-            # put that product type at the back of the list
-            self.products.append(product_type)
-
-            # if units are emtpy...
-            if not units:
-                log.info("No work to do for product_type: {}, declining offers!".format(product_type))
-                # decline the offer, freeing up the resources
-                [self.decline_offer(offer) for offer in offers]
-                # there's no work to do, return
-                response.work.length = 0
-                return response
-            else:
-                log.info("Work to do for product_type: {}, count: {}".format(product_type, len(units)))
-                for u in units:
-                    # update retrieved products in espa to scheduled status
-                    self.espa.set_to_scheduled(u)
-                    # add the units of work to the workList
-                    self.workList.append(u)
-                response.work.length = len(units)
+        if self.workList:
+            log.debug("Work to do, check for acceptable offers")
+            
+            for offer in offers:
+                mesos_offer = offer.get_offer()
+                if self.accept_offer(mesos_offer) and self.workList:
+                    log.debug("Accepting offer")
+                    # pull off a unit of work
+                    work     = self.workList.pop(0)
+                    task_id  = "{}_@@@_{}".format(work.get('orderid'), work.get('scene'))
+                    new_task = task.build(task_id, mesos_offer, self.task_image, self.required_cpus, 
+                                          self.required_memory, self.required_disk, work, self.cfg)
+                    log.debug("New Task definition: {}".format(new_task))
+                    # pymesos -> driver.launchTasks([offer.id], [new_task])
+                    offer.accept([new_task])
+                    response.offers.accepted += 1
+                else: # decline the offer
+                    log.debug("Declining offer")
+                    self.decline_offer(offer)
         else:
-            response.work.length = len(self.workList)
-
-        # we have work to do, check if there are usable offers
-        for offer in offers:
-            mesos_offer = offer.get_offer()
-            if self.accept_offer(mesos_offer) and self.workList:
-                log.debug("Accepting offer")
-                # pull off a unit of work
-                work     = self.workList.pop(0)
-                task_id  = "{}_@@@_{}".format(work.get('orderid'), work.get('scene'))
-                new_task = task.build(task_id, mesos_offer, self.task_image, self.required_cpus, 
-                                      self.required_memory, self.required_disk, work, self.cfg)
-                log.debug("New Task definition: {}".format(new_task))
-                # pymesos -> driver.launchTasks([offer.id], [new_task])
-                offer.accept([new_task])
-                response.offers.accepted += 1
-            else: # decline the offer
-                log.debug("Declining offer")
-                offer.decline()
-                # pymesos -> driver.declineOffer([offer.id])
-                response.offers.declined += 1
+            log.debug("No work to do, declining offers")
+            [self.decline_offer(offer) for offer in offers]
 
         log.debug("resourceOffer response: {}".format(response))
         return response
@@ -198,6 +172,39 @@ class ESPAFramework(object):
 
         return response
 
+    def get_products_to_process(self):
+        max_scheduled = self.cfg.get('product_scheduled_max')
+        if len(self.workList) < max_scheduled:
+            # pull the first item off the product types list
+            product_type = self.products.pop(0)
+            # get products to process for the product_type
+            units = self.espa.get_products_to_process([product_type], self.request_count).get("products")
+            # put that product type at the back of the list
+            self.products.append(product_type)
+
+            # if units are emtpy...
+            if not units:
+                log.info("No work to do for product_type: {}".format(product_type))
+            else:
+                log.info("Work to do for product_type: {}, count: {}, appending to work list".format(product_type, len(units)))
+                for u in units:
+                    # update retrieved products in espa to scheduled status
+                    self.espa.set_to_scheduled(u)
+                    # add the units of work to the workList
+                    self.workList.append(u)
+        else:
+            log.info("Max number of tasks scheduled, not requesting more products to process")
+        
+        return True
+
+    def request_work(self):
+        frequency = self.cfg.get('product_request_frequency')
+        log.debug("calling get_products_to_process with frequency: {} minutes".format(frequency))
+
+        schedule.every(frequency).minutes.do(self.get_products_to_process)
+        while True:
+            schedule.run_pending()
+
 
 def handle_orders(cfg, api):
     frequency = cfg.get('handle_orders_frequency')
@@ -212,10 +219,12 @@ def main():
     framework = ESPAFramework(cfg, espa_api)
 
     framework_process = Process(target=framework.client.register)
+    requests_process  = Process(target=framework.request_work)
     schedule_process  = Process(target=handle_orders, args=(cfg, espa_api,))
 
     schedule_process.start()
     framework_process.start()
+    requests_process.start()
 
 if __name__ == '__main__':
     main()

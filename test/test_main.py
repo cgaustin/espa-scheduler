@@ -93,7 +93,6 @@ class TestMain(unittest.TestCase):
 
         resp = self.framework.offer_received(offers)
         self.assertTrue(resp.tasks.enabled)
-        self.assertEqual(resp.work.length, 0)
 
     @patch('scheduler.espa.APIServer.mesos_tasks_disabled', lambda i: False)
     @patch('scheduler.espa.APIServer.get_products_to_process', lambda a, b, c: {"products": [{"orderid": "foo@manchu.com-123", "sceneid": "L8BBCC"}, {"orderid": "foo@manchu.com-123", "sceneid": "L7BBCC"}]})
@@ -117,9 +116,10 @@ class TestMain(unittest.TestCase):
 
         offers = [offer_good]
 
+        self.framework.workList = [{"orderid":"foo", "scene":"bar"}]
+
         resp = self.framework.offer_received(offers)
         self.assertTrue(resp.tasks.enabled)
-        self.assertEqual(resp.work.length, 2)
         self.assertEqual(resp.offers.accepted, 1)
 
 

@@ -4,6 +4,13 @@ from scheduler.config import config
 
 cfg = config()
 
+class LogFilter(object):
+    def __init__(self, level):
+        self.__level = level
+
+    def filter(self, logRecord):
+        return logRecord.levelno <= self.__level
+
 def get_logger():
 
     log_level = logging.DEBUG if cfg.get('log_level') == 'debug' else logging.INFO 
@@ -16,6 +23,7 @@ def get_logger():
     info_handler = logging.StreamHandler(sys.stdout)
     info_handler.setLevel(log_level)
     info_handler.setFormatter(formatter)
+    info_handler.addFilter(LogFilter(logging.INFO))
 
     warn_handler = logging.StreamHandler(sys.stderr)
     warn_handler.setLevel(logging.WARN)
