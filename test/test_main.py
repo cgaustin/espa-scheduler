@@ -21,10 +21,12 @@ class TestMain(unittest.TestCase):
         self.image = "usgseros/espa-scheduler:latest"
         self.cfg = config()
         self.cfg['mesos_master'] = "http://127.0.0.1:5050"
+
+        worklist = Mock()
         
         m.get(self.host, json={"foo": 1})
         self.api = api_connect({"espa_api": self.host, "task_image": self.image})
-        self.framework = ESPAFramework(self.cfg, self.api)
+        self.framework = ESPAFramework(self.cfg, self.api, worklist)
 
     def test__getResource(self):
         resource = Dict()
@@ -116,7 +118,14 @@ class TestMain(unittest.TestCase):
 
         offers = [offer_good]
 
-        self.framework.workList = [{"orderid":"foo", "scene":"bar"}]
+        class MockOffer(object):
+            def empty(self):
+                return False
+
+            def get(self):
+                return {"orderid":"foo", "scene":"bar"}
+
+        self.framework.workList = MockOffer()
 
         resp = self.framework.offer_received(offers)
         self.assertTrue(resp.tasks.enabled)
@@ -125,6 +134,7 @@ class TestMain(unittest.TestCase):
 
     def test_status_update(self):
         driver = Mock()
+        
         update = dict()
         update['status'] = {'task_id': {'value': "orderid_@@@_unitid"}} 
         update['status']['state'] = "TASK_RUNNING"
