@@ -29,7 +29,7 @@ class ESPAFramework(object):
         self.espa = espa_api
         self.cfg  = cfg
 
-        self.client = MesosClient(mesos_urls=[master])
+        self.client = MesosClient(mesos_urls=[master], frameworkName='ESPA Mesos Framework')
         self.client.verify = False
         self.client.set_credentials(principal, secret)
         self.client.on(MesosClient.SUBSCRIBED, self.subscribed)
@@ -89,7 +89,6 @@ class ESPAFramework(object):
 
     def decline_offer(self, offer):
         options = {'filters': {'refuse_seconds': self.refuse_seconds}}
-        log.debug("declining offer with filter: {}".format(options))
         offer.decline(options)
         return True        
 
@@ -102,6 +101,7 @@ class ESPAFramework(object):
         # check to see if any more tasks should be launched
         if self.espa.mesos_tasks_disabled() or self.core_limit_reached():
             # decline the offers to free up the resources
+            log.debug("Declining {} offers".format(len(offers)))
             [self.decline_offer(offer) for offer in offers]
             response.tasks.enabled = False
             return response
@@ -128,7 +128,7 @@ class ESPAFramework(object):
                     log.debug("Declining offer")
                     self.decline_offer(offer)
         else:
-            log.debug("No work to do, declining offers")
+            log.debug("No work to do, declining {} offers".format(len(offers)))
             [self.decline_offer(offer) for offer in offers]
 
         log.debug("resourceOffer response: {}".format(response))
@@ -200,35 +200,34 @@ def get_products_to_process(cfg, espa, work_list):
         
     return True
 
-def request_work(cfg, espa, work_list):
-    frequency = cfg.get('product_request_frequency')
-    log.debug("calling get_products_to_process with frequency: {} minutes".format(frequency))
-    schedule.every(frequency).minutes.do(get_products_to_process, cfg=cfg, espa=espa, work_list=work_list)
-    while True:
-        schedule.run_pending()
-
-
-def handle_orders(cfg, api):
-    frequency = cfg.get('handle_orders_frequency')
-    log.debug("calling handle_orders with frequency: {} minutes".format(frequency))
-    schedule.every(frequency).minutes.do(api.handle_orders)
+def scheduled_tasks(cfg, espa_api, work_list):
+    product_frequency = cfg.get('product_request_frequency')
+    handler_frequency = cfg.get('handle_orders_frequency')
+    log.debug("calling get_products_to_process with frequency: {} minutes".format(product_frequency))
+    log.debug("calling handle_orders with frequency: {} minutes".format(handler_frequency))
+    schedule.every(product_frequency).minutes.do(get_products_to_process, cfg=cfg, espa=espa_api, work_list=work_list)
+    schedule.every(handler_frequency).minutes.do(espa_api.handle_orders)
     while True:
         schedule.run_pending()
 
 def main():
     cfg       = config.config()    
     espa_api  = espa.api_connect(cfg)
-    work_list = Queue()
+    work_list = Queue() # multiprocessing Queue
     framework = ESPAFramework(cfg, espa_api, work_list)
 
-    framework_process = Process(target=framework.client.register)
-    requests_process  = Process(target=request_work, args=(cfg, espa_api, work_list,))
-    schedule_process  = Process(target=handle_orders, args=(cfg, espa_api,))
+    # Scheduled requests for espa processing work, and handle-orders call
+    scheduled_process  = Process(target=scheduled_tasks, args=(cfg, espa_api, work_list,))
 
-    schedule_process.start()
-    framework_process.start()
-    requests_process.start()
+    try:
+        scheduled_process.start()
+        framework.client.register()
+    except Exception as err:
+        log.error("espa scheduler encountered an error, killing scheduled processes. tearing down framework. error: {}".format(err))
+        framework.client.tearDown()
+        scheduled_process.kill()
 
+    
 if __name__ == '__main__':
     main()
 

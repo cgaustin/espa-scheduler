@@ -29,6 +29,10 @@ def get_logger():
     warn_handler.setLevel(logging.WARN)
     warn_handler.setFormatter(formatter)
 
+    # prevents duplicate log entries
+    if (logger.hasHandlers()):
+        logger.handlers.clear()
+
     logger.addHandler(info_handler)
     logger.addHandler(warn_handler)
     
