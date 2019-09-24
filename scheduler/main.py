@@ -13,6 +13,10 @@ def get_products_to_process(cfg, espa, work_list):
     products = cfg.get('product_frequency')
     request_count = cfg.get('product_request_count')
 
+    if espa.mesos_tasks_disabled():
+        log.debug("mesos tasks disabled, not requesting products to process")
+        return True
+
     if work_list.qsize() < max_scheduled:
         # pull the first item off the product types list
         product_type = products.pop(0)
