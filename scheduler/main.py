@@ -1,12 +1,51 @@
 import addict
 from multiprocessing import Process, Queue
+from multiprocessing.queues import Empty
 import os
 import schedule
 from mesoshttp.client import MesosClient
 from scheduler import config, espa, logger, task, util
 
 log = logger.get_logger()
-  
+
+def get_products_to_process(cfg, espa, work_list):
+    max_scheduled = cfg.get('product_scheduled_max')
+    products = cfg.get('product_frequency')
+    request_count = cfg.get('product_request_count')
+
+    if work_list.qsize() < max_scheduled:
+        # pull the first item off the product types list
+        product_type = products.pop(0)
+        # get products to process for the product_type
+        units = espa.get_products_to_process([product_type], request_count).get("products")
+        # put that product type at the back of the list
+        products.append(product_type)
+
+        # if units are emtpy...
+        if not units:
+            log.info("No work to do for product_type: {}".format(product_type))
+        else:
+            log.info("Work to do for product_type: {}, count: {}, appending to work list".format(product_type, len(units)))
+            for u in units:
+                # update retrieved products in espa to scheduled status
+                espa.set_to_scheduled(u)
+                # add the units of work to the workList
+                work_list.put(u)
+    else:
+        log.info("Max number of tasks scheduled, not requesting more products to process")
+        
+    return True
+
+def scheduled_tasks(cfg, espa_api, work_list):
+    product_frequency = cfg.get('product_request_frequency')
+    handler_frequency = cfg.get('handle_orders_frequency')
+    log.debug("calling get_products_to_process with frequency: {} minutes".format(product_frequency))
+    log.debug("calling handle_orders with frequency: {} minutes".format(handler_frequency))
+    schedule.every(product_frequency).minutes.do(get_products_to_process, cfg=cfg, espa=espa_api, work_list=work_list)
+    schedule.every(handler_frequency).minutes.do(espa_api.handle_orders)
+    while True:
+        schedule.run_pending()
+ 
 
 class ESPAFramework(object):
 
@@ -35,6 +74,9 @@ class ESPAFramework(object):
         self.client.on(MesosClient.SUBSCRIBED, self.subscribed)
         self.client.on(MesosClient.OFFERS, self.offer_received)
         self.client.on(MesosClient.UPDATE, self.status_update)
+
+        # put some work on the workList
+        get_products_to_process(cfg, self.espa, self.workList)
 
     def _getResource(self, res, name):
         for r in res:
@@ -69,27 +111,33 @@ class ESPAFramework(object):
 
     def accept_offer(self, offer):
         accept = True
+        resources = offer.get('resources')
         if self.required_cpus != 0:
-            cpu = self._getResource(offer['resources'], "cpus")
+            cpu = self._getResource(resources, "cpus")
             if self.required_cpus > cpu:
                 accept = False
         if self.required_memory != 0:
-            mem = self._getResource(offer['resources'], "mem")
+            mem = self._getResource(resources, "mem")
             if self.required_memory > mem:
                 accept = False
         if self.required_disk != 0:
-            disk = self._getResource(offer['resources'], "disk")
+            disk = self._getResource(resources, "disk")
             if self.required_disk > disk:
                 accept = False
         if(accept == True):
-            self._updateResource(offer['resources'], "cpus", self.required_cpus)
-            self._updateResource(offer['resources'], "mem", self.required_memory)
-
+            self._updateResource(resources, "cpus", self.required_cpus)
+            self._updateResource(resources, "mem", self.required_memory)
+        
         return accept
 
     def decline_offer(self, offer):
         options = {'filters': {'refuse_seconds': self.refuse_seconds}}
-        offer.decline(options)
+        log.debug("declining offer: {} with options: {}".format(offer, options))
+        try:
+            offer.decline(options)
+        except Exception as error:
+            log.error("Exception encountered declining offer: {}, error: {}".format(offer, error))
+            raise
         return True        
 
     def offer_received(self, offers):
@@ -98,38 +146,49 @@ class ESPAFramework(object):
         response.offers.accepted = 0
         log.debug("Received {} new offers...".format(response.offers.length))
 
-        # check to see if any more tasks should be launched
-        if self.espa.mesos_tasks_disabled() or self.core_limit_reached():
+        # check to see if Mesos tasks are enabled
+        if self.espa.mesos_tasks_disabled():
             # decline the offers to free up the resources
-            log.debug("Declining {} offers".format(len(offers)))
-            [self.decline_offer(offer) for offer in offers]
+            log.debug("mesos tasks disabled, declining {} offers".format(len(offers)))
+            for offer in offers:
+                self.decline_offer(offer)   
             response.tasks.enabled = False
             return response
         else:
             response.tasks.enabled = True
 
-        if not self.workList.empty():
-            log.debug("Work to do, check for acceptable offers")
-            
+        # check to see if core limit has been reached
+        if self.core_limit_reached():
+            # decline the offers to free up the resources
+            log.debug("Core utilization limit reached, declining {} offers".format(len(offers)))
             for offer in offers:
-                mesos_offer = offer.get_offer()
-                if self.accept_offer(mesos_offer) and self.workList:
-                    log.debug("Accepting offer")
-                    # pull off a unit of work
-                    work     = self.workList.get()
+                self.decline_offer(offer)
+            response.tasks.enabled = False
+            return response
+        else:
+            response.tasks.enabled = True
+
+        for offer in offers:
+            mesos_offer = offer.get_offer()
+            if self.accept_offer(mesos_offer):
+                log.debug("Acceptable offer, checking for work to do")
+                try:
+                    work     = self.workList.get(False) # will raise multiprocessing.Empty if no objects present
                     task_id  = "{}_@@@_{}".format(work.get('orderid'), work.get('scene'))
                     new_task = task.build(task_id, mesos_offer, self.task_image, self.required_cpus, 
                                           self.required_memory, self.required_disk, work, self.cfg)
                     log.debug("New Task definition: {}".format(new_task))
-                    # pymesos -> driver.launchTasks([offer.id], [new_task])
                     offer.accept([new_task])
                     response.offers.accepted += 1
-                else: # decline the offer
-                    log.debug("Declining offer")
+                except Empty:
+                    log.debug("Work queue is empty, declining offer")
                     self.decline_offer(offer)
-        else:
-            log.debug("No work to do, declining {} offers".format(len(offers)))
-            [self.decline_offer(offer) for offer in offers]
+                except Exception as e:
+                    log.error("Exception creating new task. offer: {}, exception: {}\n declining offer".format(offer, e))
+                    self.decline_offer(offer)
+            else:
+                log.debug("Unacceptable offer, declining")
+                self.decline_offer(offer)
 
         log.debug("resourceOffer response: {}".format(response))
         return response
@@ -172,43 +231,6 @@ class ESPAFramework(object):
 
         return response
 
-def get_products_to_process(cfg, espa, work_list):
-    max_scheduled = cfg.get('product_scheduled_max')
-    products = cfg.get('product_frequency')
-    request_count = cfg.get('product_request_count')
-
-    if work_list.qsize() < max_scheduled:
-        # pull the first item off the product types list
-        product_type = products.pop(0)
-        # get products to process for the product_type
-        units = espa.get_products_to_process([product_type], request_count).get("products")
-        # put that product type at the back of the list
-        products.append(product_type)
-
-        # if units are emtpy...
-        if not units:
-            log.info("No work to do for product_type: {}".format(product_type))
-        else:
-            log.info("Work to do for product_type: {}, count: {}, appending to work list".format(product_type, len(units)))
-            for u in units:
-                # update retrieved products in espa to scheduled status
-                espa.set_to_scheduled(u)
-                # add the units of work to the workList
-                work_list.put(u)
-    else:
-        log.info("Max number of tasks scheduled, not requesting more products to process")
-        
-    return True
-
-def scheduled_tasks(cfg, espa_api, work_list):
-    product_frequency = cfg.get('product_request_frequency')
-    handler_frequency = cfg.get('handle_orders_frequency')
-    log.debug("calling get_products_to_process with frequency: {} minutes".format(product_frequency))
-    log.debug("calling handle_orders with frequency: {} minutes".format(handler_frequency))
-    schedule.every(product_frequency).minutes.do(get_products_to_process, cfg=cfg, espa=espa_api, work_list=work_list)
-    schedule.every(handler_frequency).minutes.do(espa_api.handle_orders)
-    while True:
-        schedule.run_pending()
 
 def main():
     cfg       = config.config()    

@@ -8,6 +8,7 @@ import unittest
 from addict import Dict
 from mock import patch
 from unittest.mock import Mock
+from multiprocessing import Queue
 
 from scheduler.main import ESPAFramework
 from scheduler.config import config
@@ -22,7 +23,7 @@ class TestMain(unittest.TestCase):
         self.cfg = config()
         self.cfg['mesos_master'] = "http://127.0.0.1:5050"
 
-        worklist = Mock()
+        worklist = Queue()
         
         m.get(self.host, json={"foo": 1})
         self.api = api_connect({"espa_api": self.host, "task_image": self.image})
@@ -89,6 +90,7 @@ class TestMain(unittest.TestCase):
 
     @patch('scheduler.espa.APIServer.mesos_tasks_disabled', lambda i: False)
     @patch('scheduler.espa.APIServer.get_products_to_process', lambda a, b, c: {"products": []})
+    @patch('scheduler.main.ESPAFramework.accept_offer', lambda a, b: True)
     def test_offer_received_nowork(self):
         driver = Mock()
         offers = [Mock()]
@@ -122,7 +124,7 @@ class TestMain(unittest.TestCase):
             def empty(self):
                 return False
 
-            def get(self):
+            def get(self, failfast):
                 return {"orderid":"foo", "scene":"bar"}
 
         self.framework.workList = MockOffer()
