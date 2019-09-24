@@ -76,7 +76,7 @@ class APIServer(object):
         if key in resp.keys():
             return resp[key]
 
-    @retry(stop=stop_after_attempt(10), wait=wait_fixed(60)) # 10 attempts, 60 second intervals
+    @retry(stop=stop_after_attempt(2), wait=wait_fixed(10)) # 10 attempts, 60 second intervals
     def update_status(self, prod_id, order_id, val):
         """
         Update the status of a product

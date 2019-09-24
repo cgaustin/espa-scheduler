@@ -1,6 +1,6 @@
 import addict
 from multiprocessing import Process, Queue
-from multiprocessing.queues import Empty
+from multiprocessing.queues import Empty, Full
 import os
 import schedule
 from mesoshttp.client import MesosClient
@@ -27,10 +27,15 @@ def get_products_to_process(cfg, espa, work_list):
         else:
             log.info("Work to do for product_type: {}, count: {}, appending to work list".format(product_type, len(units)))
             for u in units:
-                # update retrieved products in espa to scheduled status
-                espa.set_to_scheduled(u)
-                # add the units of work to the workList
-                work_list.put(u)
+                try:
+                    # add the units of work to the workList
+                    work_list.put_nowait(u)
+                    # update retrieved products in espa to scheduled status
+                    espa.set_to_scheduled(u)
+                except Full:
+                    log.error("work_list queue is full!")
+                except Exception as e:
+                    log.error("problem scheduling a task! unit: {} \n error: {}".format(u, e))
     else:
         log.info("Max number of tasks scheduled, not requesting more products to process")
         
@@ -174,11 +179,14 @@ class ESPAFramework(object):
                 log.debug("Acceptable offer, checking for work to do")
                 try:
                     work     = self.workList.get(False) # will raise multiprocessing.Empty if no objects present
-                    task_id  = "{}_@@@_{}".format(work.get('orderid'), work.get('scene'))
+                    orderid  = work.get('orderid')
+                    scene    = work.get('scene')
+                    task_id  = "{}_@@@_{}".format(orderid, scene)
                     new_task = task.build(task_id, mesos_offer, self.task_image, self.required_cpus, 
                                           self.required_memory, self.required_disk, work, self.cfg)
                     log.debug("New Task definition: {}".format(new_task))
                     offer.accept([new_task])
+                    self.espa.update_status(scene, orderid, 'tasked')
                     response.offers.accepted += 1
                 except Empty:
                     log.debug("Work queue is empty, declining offer")

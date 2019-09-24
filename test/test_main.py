@@ -101,6 +101,7 @@ class TestMain(unittest.TestCase):
     @patch('scheduler.espa.APIServer.mesos_tasks_disabled', lambda i: False)
     @patch('scheduler.espa.APIServer.get_products_to_process', lambda a, b, c: {"products": [{"orderid": "foo@manchu.com-123", "sceneid": "L8BBCC"}, {"orderid": "foo@manchu.com-123", "sceneid": "L7BBCC"}]})
     @patch('scheduler.espa.APIServer.set_to_scheduled', lambda a, b: True)
+    @patch('scheduler.espa.APIServer.update_status', lambda a, b, c, d: True)
     @patch('scheduler.main.ESPAFramework.accept_offer', lambda a, b: True)
     @patch('scheduler.task.build', lambda a, b, c, d, e, f, g, h: {'agent_id': {'value': 'foo'}})
     def test_offer_received_work(self):
