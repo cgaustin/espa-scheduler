@@ -1,22 +1,24 @@
 import addict
-from multiprocessing import Process, Queue
-from multiprocessing.queues import Empty, Full
 import os
 import schedule
 from mesoshttp.client import MesosClient
+from multiprocessing import Process, Queue
+from multiprocessing.queues import Empty, Full
+
 from scheduler import config, espa, logger, task, util
 
 log = logger.get_logger()
 
 def get_products_to_process(cfg, espa, work_list):
     max_scheduled = cfg.get('product_scheduled_max')
-    products = cfg.get('product_frequency')
+    products      = cfg.get('product_frequency')
     request_count = cfg.get('product_request_count')
 
     if espa.mesos_tasks_disabled():
         log.debug("mesos tasks disabled, not requesting products to process")
         return True
 
+    # qsize() is approximate https://docs.python.org/3/library/multiprocessing.html#multiprocessing.Queue.qsize
     if work_list.qsize() < max_scheduled:
         # pull the first item off the product types list
         product_type = products.pop(0)
@@ -84,7 +86,7 @@ class ESPAFramework(object):
         self.client.on(MesosClient.OFFERS, self.offer_received)
         self.client.on(MesosClient.UPDATE, self.status_update)
 
-        # put some work on the workList
+        # put some work on the queue
         get_products_to_process(cfg, self.espa, self.workList)
 
     def _getResource(self, res, name):
@@ -101,6 +103,10 @@ class ESPAFramework(object):
                 r['scalar']['value'] -= value
         return
 
+    def subscribed(self, driver):
+        log.warning('SUBSCRIBED')
+        self.driver = driver
+
     def core_limit_reached(self):
         running_count = len(self.runningList)
         task_core_count = self.required_cpus
@@ -113,10 +119,6 @@ class ESPAFramework(object):
             resp = True
 
         return resp
-
-    def subscribed(self, driver):
-        log.warning('SUBSCRIBED')
-        self.driver = driver
 
     def accept_offer(self, offer):
         accept = True
@@ -136,7 +138,8 @@ class ESPAFramework(object):
         if(accept == True):
             self._updateResource(resources, "cpus", self.required_cpus)
             self._updateResource(resources, "mem", self.required_memory)
-        
+            self._updateResource(resources, "disk", self.required_disk)
+
         return accept
 
     def decline_offer(self, offer):
