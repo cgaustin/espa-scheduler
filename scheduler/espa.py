@@ -1,9 +1,15 @@
+import json
+from scheduler import logger
 import requests
-import logging
+import sys
 
+from tenacity import retry
+from tenacity import retry_if_exception_type
+from tenacity import stop_after_attempt
+from tenacity import wait_fixed
+from tenacity import wait_random_exponential
 
-logging.getLogger('requests').setLevel(logging.WARNING)
-
+log = logger.get_logger()
 
 class APIException(Exception):
     """
@@ -70,6 +76,7 @@ class APIServer(object):
         if key in resp.keys():
             return resp[key]
 
+    @retry(stop=stop_after_attempt(2), wait=wait_fixed(10)) # 10 attempts, 60 second intervals
     def update_status(self, prod_id, order_id, val):
         """
         Update the status of a product
@@ -91,6 +98,8 @@ class APIServer(object):
 
         resp, status = self.request('post', url, json=data_dict, status=200)
 
+        log.debug("ESPA API update_status call. data: {},  status: {},  response: {} ".format(data_dict, status, resp))
+
         return {"response": resp, "status": status, "data": data_dict}
 
     def set_to_scheduled(self, unit):
@@ -99,6 +108,7 @@ class APIServer(object):
         self.update_status(prod_id, order_id, 'scheduled')
         return True
 
+    @retry(stop=stop_after_attempt(10), wait=wait_fixed(60)) # 10 attempts, 60 second intervals
     def set_scene_error(self, prod_id, order_id, data):
         """
         Set a scene to error status
@@ -115,10 +125,11 @@ class APIServer(object):
         data_dict = {'name': prod_id,
                      'orderid': order_id,
                      'processing_loc': self.image,
-                     'error': data}
+                     'error': json.dumps(data)}
 
         resp, status = self.request('post', url, json=data_dict, status=200)
 
+        log.debug("ESPA API set_scene_error call. data: {},  status: {},  response: {} ".format(data_dict, status, resp))
         return {"response": resp, "status": status, "data": data_dict}
 
     def get_products_to_process(self, product_type, limit, user=None, priority=None):
@@ -133,26 +144,47 @@ class APIServer(object):
 
         Returns: list of dicts
         """
+
         params = ['record_limit={}'.format(limit) if limit else None,
                   'for_user={}'.format(user) if user else None,
                   'priority={}'.format(priority) if priority else None,
                   'product_types={}'.format(product_type) if product_type else None]
 
         query = '&'.join([q for q in params if q])
-
+        resp = []
         url = '/products?{}'.format(query)
 
-        resp, status = self.request('get', url, status=200)
+        try:
+            resp, status = self.request('get', url, status=200)
+            log.debug("ESPA API get_products_to_process call. data: {},  status: {},  response: {} ".format(params, status, resp))
+        except Exception as e:
+            log.error("Error retrieving products to process. url: {}  exception: {}".format(url, e))
 
         return {"products": resp, "url": url}
 
+    def handle_orders(self):
+        url = '/handle-orders'
+        status = False
+        try:
+            resp, status = self.request('get', url, status=200)
+            log.debug("ESPA API handle_orders call. status: {},  response: {} ".format(status, resp))
+        except Exception as e:
+            log.error("Error executing handle-orders, exception: {}".format(e))
+
+        return status
+
     def mesos_tasks_disabled(self):
-        run = self.get_configuration('run_mesos_tasks')
-        if run == 'True':
-            resp = False
-        else:
-            logger.info("Mesos tasks disabled!")
-            resp = True
+        resp = True
+        try:
+            run = self.get_configuration('run_mesos_tasks')
+            if run == 'True':
+                log.debug('Mesos tasks enabled in ESPA')
+                resp = False
+            else:
+                log.info("Mesos tasks disabled!")
+        except Exception as e:
+            log.error("Error retrieving run_mesos_tasks configuration, exception: {}".format(e))
+
         return resp
 
     @staticmethod

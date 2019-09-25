@@ -30,14 +30,22 @@ def config():
         ['product_frequency', product_frequency()],
         de('espa_api', 'http://localhost:9876/production-api/v0'),
         de('product_request_count', 50, int),
+        de('product_request_frequency', 2, int),
+        de('product_scheduled_max', 200, int),
         de('max_cpu', 10, int),
         de('task_cpu', 1, float),
         de('task_mem', 5120, int), # 5G
+        de('task_disk', 10240, int), # 10g
         de('task_image', None),
         de('offer_refuse_seconds', 30, int),
         de('auxiliary_mount', None),
         de('aux_dir', None), # name required by processing libs
         de('storage_mount', None),
         de('espa_storage', None), # name required by processing libs
-        de('aster_ged_server_name', None)
+        de('aster_ged_server_name', None),
+        de('handle_orders_frequency', 7, int),
+        de('log_level', 'debug'),
+        de('urs_machine', 'machine'), # these urs_* values provide auth to nasa earthdata
+        de('urs_login', 'login'),
+        de('urs_password', 'password')
     ])

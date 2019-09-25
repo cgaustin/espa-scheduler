@@ -16,14 +16,20 @@ class TestTask(unittest.TestCase):
         cfg = {"espa_storage": "/espa-storage",
                "espa_api": "http://127.0.0.1:9876",
                "aster_ged_server_name": "http://127.0.0.1:8888",
-               "aux_dir": "/espa-aux"}
+               "aux_dir": "/espa-aux",
+               "urs_machine": "urs",
+               "urs_login": "uname",
+               "urs_password": "1234"}
 
         envvars = task.env_vars(cfg)
 
         expected = [{"name":"ESPA_STORAGE",          "value":"/espa-storage"},
                     {"name":"ESPA_API",              "value":"http://127.0.0.1:9876"},
                     {"name":"ASTER_GED_SERVER_NAME", "value":"http://127.0.0.1:8888"},
-                    {"name":"AUX_DIR",               "value":"/espa-aux"}]
+                    {"name":"AUX_DIR",               "value":"/espa-aux"},
+                    {"name":"URS_MACHINE",           "value":"urs"},
+                    {"name":"URS_LOGIN",             "value":"uname"},
+                    {"name":"URS_PASSWORD",          "value":"1234"}]
 
         self.assertEqual(envvars, expected)
 
@@ -40,15 +46,17 @@ class TestTask(unittest.TestCase):
         self.assertEqual(vols, expected)
 
     def test_resources(self):
-        resources = task.resources(1, 5120)
+        resources = task.resources(1, 5120, 10240)
         expected = [{'name':'cpus', 'type':'SCALAR', 'scalar':{'value': 1}},
-                    {'name':'mem' , 'type':'SCALAR', 'scalar':{'value': 5120}}]
-        self.assertEqual(resources, expected)
+                    {'name':'mem' , 'type':'SCALAR', 'scalar':{'value': 5120}},
+                    {'name':'disk', 'type':'SCALAR', 'scalar':{'value': 10240}}]
+        self.assertEqual(resources[0].keys(), expected[0].keys())
+        self.assertEqual(len(resources), len(expected))
 
     def test_command(self):
         work_json = {"foo": 1}
         command = task.command(work_json)
-        expected = "main.py {'foo': 1}"
+        expected = 'python /src/processing/main.py \'[{"foo":1}]\''
         self.assertEqual(command, expected)
 
     def test_build(self):
@@ -57,15 +65,19 @@ class TestTask(unittest.TestCase):
         image_name = "usgseros/espa-worker:latest"
         cpu = 1
         mem = 5120
+        disk = 10240
         work = {"foo": 1}
         cfg = {"espa_storage": "/espa-storage",
                "espa_api": "http://127.0.0.1:9876",
                "aster_ged_server_name": "http://127.0.0.1:8888",
                "aux_dir": "/espa-aux",
                "auxiliary_mount": "/usr/local/aux",
-               "storage_mount": "/usr/local/storage"} 
+               "storage_mount": "/usr/local/storage",
+               "urs_machine": "urs",
+               "urs_login": "uname",
+               "urs_password": "1234"}
 
-        build = task.build("orderid_scenename", offer, image_name, cpu, mem, work, cfg)
+        build = task.build("orderid_scenename", offer, image_name, cpu, mem, disk, work, cfg)
 
         expected = Dict()
         expected.task_id.value = "orderid_scenename"
@@ -76,12 +88,16 @@ class TestTask(unittest.TestCase):
         expected.container.volumes = [{"container_path": "/espa-aux", "host_path": "/usr/local/aux", "mode": "RW"},
                                       {"container_path": "/espa-storage", "host_path": "/usr/local/storage", "mode": "RW"}]
         expected.resources = [{'name':'cpus', 'type':'SCALAR', 'scalar':{'value': 1}},
-                              {'name':'mem' , 'type':'SCALAR', 'scalar':{'value': 5120}}]
-        expected.command.value = "main.py {'foo': 1}"
+                              {'name':'mem' , 'type':'SCALAR', 'scalar':{'value': 5120}},
+                              {'name':'disk', 'type':'SCALAR', 'scalar':{'value': 10240}}]
+        expected.command.value = "python /src/processing/main.py '[{\"foo\":1}]'"
         expected.command.environment.variables = [{"name":"ESPA_STORAGE",          "value":"/espa-storage"},
                                                   {"name":"ESPA_API",              "value":"http://127.0.0.1:9876"},
                                                   {"name":"ASTER_GED_SERVER_NAME", "value":"http://127.0.0.1:8888"},
-                                                  {"name":"AUX_DIR",               "value":"/espa-aux"}]
+                                                  {"name":"AUX_DIR",               "value":"/espa-aux"},
+                                                  {"name":"URS_MACHINE",           "value":"urs"},
+                                                  {"name":"URS_LOGIN",             "value":"uname"},
+                                                  {"name":"URS_PASSWORD",          "value":"1234"}]
 
         self.assertEqual(build, expected)
 
