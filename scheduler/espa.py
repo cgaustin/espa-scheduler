@@ -4,10 +4,8 @@ import requests
 import sys
 
 from tenacity import retry
-from tenacity import retry_if_exception_type
 from tenacity import stop_after_attempt
 from tenacity import wait_fixed
-from tenacity import wait_random_exponential
 
 log = logger.get_logger()
 
@@ -26,6 +24,7 @@ class APIServer(object):
         self.base = base_url
         self.image = image
 
+    @retry(reraise=True, stop=stop_after_attempt(3), wait=wait_fixed(10)) # 3 attempts, 10 second intervals
     def request(self, method, resource=None, status=None, **kwargs):
         """
         Make a call into the API
@@ -55,7 +54,7 @@ class APIServer(object):
             raise APIException(e)
 
         if status and resp.status_code != status:
-            self._unexpected_status(resp.status_code, url)
+           raise Exception('Received unexpected status code: {}\n for URL: {}'.format(code, url))
 
         return resp.json(), resp.status_code
 
@@ -70,13 +69,10 @@ class APIServer(object):
 
         """
         config_url = '/configuration/{}'.format(key)
-
         resp, status = self.request('get', config_url, status=200)
-
         if key in resp.keys():
             return resp[key]
 
-    @retry(stop=stop_after_attempt(2), wait=wait_fixed(10)) # 10 attempts, 60 second intervals
     def update_status(self, prod_id, order_id, val):
         """
         Update the status of a product
@@ -97,9 +93,7 @@ class APIServer(object):
                      'status': val}
 
         resp, status = self.request('post', url, json=data_dict, status=200)
-
         log.debug("ESPA API update_status call. data: {},  status: {},  response: {} ".format(data_dict, status, resp))
-
         return {"response": resp, "status": status, "data": data_dict}
 
     def set_to_scheduled(self, unit):
@@ -108,7 +102,7 @@ class APIServer(object):
         self.update_status(prod_id, order_id, 'scheduled')
         return True
 
-    @retry(stop=stop_after_attempt(10), wait=wait_fixed(60)) # 10 attempts, 60 second intervals
+
     def set_scene_error(self, prod_id, order_id, data):
         """
         Set a scene to error status
@@ -128,7 +122,6 @@ class APIServer(object):
                      'error': json.dumps(data)}
 
         resp, status = self.request('post', url, json=data_dict, status=200)
-
         log.debug("ESPA API set_scene_error call. data: {},  status: {},  response: {} ".format(data_dict, status, resp))
         return {"response": resp, "status": status, "data": data_dict}
 
@@ -186,18 +179,6 @@ class APIServer(object):
             log.error("Error retrieving run_mesos_tasks configuration, exception: {}".format(e))
 
         return resp
-
-    @staticmethod
-    def _unexpected_status(code, url):
-        """
-        Throw exception for an unhandled http status
-
-        Args:
-            code: http status that was received
-            url: URL that was used
-        """
-        raise Exception('Received unexpected status code: {}\n'
-                        'for URL: {}'.format(code, url))
 
     def test_connection(self):
         """
