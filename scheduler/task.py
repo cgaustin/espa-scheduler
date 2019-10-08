@@ -3,7 +3,9 @@ import json
 
 def env_vars(cfg):
     """Return list of dicts defining task environment vars"""
-    return [{"name":"ESPA_STORAGE",          "value":cfg.get('espa_storage')},
+    return [{"name":"ESPA_USER",             "value":cfg.get('espa_user')},
+            {"name":"ESPA_GROUP",            "value":cfg.get('espa_group')},
+            {"name":"ESPA_STORAGE",          "value":cfg.get('espa_storage')},
             {"name":"ESPA_API",              "value":cfg.get('espa_api')},
             {"name":"ASTER_GED_SERVER_NAME", "value":cfg.get('aster_ged_server_name')},
             {"name":"AUX_DIR",               "value":cfg.get('aux_dir')},

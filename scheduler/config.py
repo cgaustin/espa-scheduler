@@ -18,6 +18,7 @@ def product_frequency():
     frequency.append(['modis',   de('modis_frequency',   2, int)[1]])
     frequency.append(['viirs',   de('viirs_frequency',   1, int)[1]])
     frequency.append(['plot',    de('plot_frequency',    1, int)[1]])
+    # TODO: Add Sentinel-2
     return list(itertools.chain.from_iterable(itertools.repeat(x[0], x[1]) for x in frequency))
 
 def config():
@@ -42,6 +43,8 @@ def config():
         de('aux_dir', None), # name required by processing libs
         de('storage_mount', None),
         de('espa_storage', None), # name required by processing libs
+        de('espa_user', None),  # name required by processing libs
+        de('espa_group', None),  # name required by processing libs
         de('aster_ged_server_name', None),
         de('handle_orders_frequency', 7, int),
         de('log_level', 'debug'),

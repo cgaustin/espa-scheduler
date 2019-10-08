@@ -25,6 +25,7 @@ class TestConfig(unittest.TestCase):
                          sorted(['mesos_principal', 'mesos_secret', 'mesos_master', 'mesos_user', 'product_frequency',
                           'espa_api', 'product_request_count', 'product_request_frequency', 'product_scheduled_max', 
                           'max_cpu', 'task_cpu', 'task_mem', 'task_disk', 'task_image', 'offer_refuse_seconds', 
-                          'auxiliary_mount', 'aux_dir', 'storage_mount', 'espa_storage', 'aster_ged_server_name', 
-                          'handle_orders_frequency', 'log_level', 'urs_machine', 'urs_login', 'urs_password']))
+                          'auxiliary_mount', 'aux_dir', 'storage_mount', 'espa_storage', 'espa_user', 'espa_group',
+                          'aster_ged_server_name', 'handle_orders_frequency', 'log_level',
+                          'urs_machine', 'urs_login', 'urs_password']))
 
