@@ -43,6 +43,8 @@ ESPA Scheduler is configured using these environment variables:
 | `MESOS_SECRET`          | Secret value for authenticating to your Mesos instance      |         |
 | `MESOS_MASTER`          | The IP Address of the Mesos Master                          |         |
 | `ESPA_API`              | The URL for the ESPA API instance to request work from      |         |
+| `ESPA_USER`             | The ESPA user for the dev/tst/ops environment               |         |
+| `ESPA_GROUP`            | The ESPA user-group for the dev/tst/ops environment         |         |
 | `PRODUCT_REQUEST_COUNT` | The number of units to return from the ESPA API per request | 50      |   
 | `MAX_CPU`               | The max number of CPUs to use on the system at a time       | 10      |
 | `TASK_CPU`              | The number of CPUs to assign each Task                      | 1       |
@@ -58,6 +60,9 @@ ESPA Scheduler is configured using these environment variables:
 | `MODIS_FREQUENCY`       | How often to process Modis units, given other frequencies   | 2       |
 | `VIIRS_FREQUENCY`       | How often to process Viirs units, given other frequencies   | 1       | 
 | `PLOT_FREQUENCY`        | How often to process Plot units, given other frequencies    | 1       |
+| `URS_MACHINE`           | The URL for accessing Earthdata login                       |         |
+| `URS_LOGIN`             | The ESPA Earthdata login username                           |         |
+| `URS_PASSWORD`          | The ESPA Earthdata login password                           |         |
 
 
 # Operation

@@ -13,7 +13,9 @@ class TestTask(unittest.TestCase):
         self.foo = 1
 
     def test_env_vars(self):
-        cfg = {"espa_storage": "/espa-storage",
+        cfg = {"espa_user": "user",
+               "espa_group": "group",
+               "espa_storage": "/espa-storage",
                "espa_api": "http://127.0.0.1:9876",
                "aster_ged_server_name": "http://127.0.0.1:8888",
                "aux_dir": "/espa-aux",
@@ -23,7 +25,9 @@ class TestTask(unittest.TestCase):
 
         envvars = task.env_vars(cfg)
 
-        expected = [{"name":"ESPA_STORAGE",          "value":"/espa-storage"},
+        expected = [{"name":"ESPA_USER",             "value":"user"},
+                    {"name":"ESPA_GROUP",            "value": "group"},
+                    {"name":"ESPA_STORAGE",          "value":"/espa-storage"},
                     {"name":"ESPA_API",              "value":"http://127.0.0.1:9876"},
                     {"name":"ASTER_GED_SERVER_NAME", "value":"http://127.0.0.1:8888"},
                     {"name":"AUX_DIR",               "value":"/espa-aux"},
@@ -67,7 +71,9 @@ class TestTask(unittest.TestCase):
         mem = 5120
         disk = 10240
         work = {"foo": 1}
-        cfg = {"espa_storage": "/espa-storage",
+        cfg = {"espa_user": "user",
+               "espa_group": "group",
+               "espa_storage": "/espa-storage",
                "espa_api": "http://127.0.0.1:9876",
                "aster_ged_server_name": "http://127.0.0.1:8888",
                "aux_dir": "/espa-aux",
@@ -91,7 +97,9 @@ class TestTask(unittest.TestCase):
                               {'name':'mem' , 'type':'SCALAR', 'scalar':{'value': 5120}},
                               {'name':'disk', 'type':'SCALAR', 'scalar':{'value': 10240}}]
         expected.command.value = "python /src/processing/main.py '[{\"foo\":1}]'"
-        expected.command.environment.variables = [{"name":"ESPA_STORAGE",          "value":"/espa-storage"},
+        expected.command.environment.variables = [{"name":"ESPA_USER",             "value":"user"},
+                                                  {"name":"ESPA_GROUP",            "value":"group"},
+                                                  {"name":"ESPA_STORAGE",          "value":"/espa-storage"},
                                                   {"name":"ESPA_API",              "value":"http://127.0.0.1:9876"},
                                                   {"name":"ASTER_GED_SERVER_NAME", "value":"http://127.0.0.1:8888"},
                                                   {"name":"AUX_DIR",               "value":"/espa-aux"},
