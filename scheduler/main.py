@@ -47,23 +47,54 @@ def get_products_to_process(cfg, espa, work_list):
         
     return True
 
-def scheduled_tasks(cfg, espa_api, work_list):
+
+def revive_framework(transfer_queue):
+    
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Mesos-Stream-Id': self.streamId
+    }
+
+    revive = {
+        "framework_id": {"value": self.frameworkId},
+        "type": "REVIVE"
+    }
+
+    try:
+        requests.post(
+            self.mesos_url + '/api/v1/scheduler',
+            json.dumps(revive),
+            headers=headers,
+            auth=self.requests_auth,
+            verify=self.verify
+        )
+    except Exception as e:
+        raise MesosException(e)
+
+def attempt_revive(scheduler_driver):
+    scheduler_driver.revive()
+
+
+def scheduled_tasks(cfg, espa_api, work_list, scheduler_driver):
     product_frequency = cfg.get('product_request_frequency')
     handler_frequency = cfg.get('handle_orders_frequency')
     log.debug("calling get_products_to_process with frequency: {} minutes".format(product_frequency))
     log.debug("calling handle_orders with frequency: {} minutes".format(handler_frequency))
     schedule.every(product_frequency).minutes.do(get_products_to_process, cfg=cfg, espa=espa_api, work_list=work_list)
     schedule.every(handler_frequency).minutes.do(espa_api.handle_orders)
+    #schedule.every(30).minutes.do(attempt_revive, scheduler_driver=scheduler_driver)
     while True:
         schedule.run_pending()
  
 
 class ESPAFramework(object):
 
-    def __init__(self, cfg, espa_api, worklist):
+    def __init__(self, cfg, espa_api, worklist, hostname):
         master    = cfg.get('mesos_master') 
         principal = cfg.get('mesos_principal')
         secret    = cfg.get('mesos_secret')
+        user      = cfg.get('espa_user')
 
         self.workList        = worklist
         self.runningList     = {}
@@ -79,12 +110,13 @@ class ESPAFramework(object):
         self.espa = espa_api
         self.cfg  = cfg
 
-        self.client = MesosClient(mesos_urls=[master], frameworkName='ESPA Mesos Framework')
+        self.client = MesosClient(mesos_urls=[master], frameworkName='ESPA Mesos Framework', frameworkHostname=hostname, frameworkUser=user)
         self.client.verify = False
         self.client.set_credentials(principal, secret)
         self.client.on(MesosClient.SUBSCRIBED, self.subscribed)
         self.client.on(MesosClient.OFFERS, self.offer_received)
         self.client.on(MesosClient.UPDATE, self.status_update)
+        self.client.set_role(user)
 
         # put some work on the queue
         get_products_to_process(cfg, self.espa, self.workList)
@@ -106,6 +138,13 @@ class ESPAFramework(object):
     def subscribed(self, driver):
         log.warning('SUBSCRIBED')
         self.driver = driver
+        # we're subscribed, spin off the scheduling work
+        scheduled_process  = Process(target=scheduled_tasks, args=(self.cfg, self.espa, self.work_list, self.driver))
+        scheduled_process.start()
+        # we need streamId
+        #self.streamId = self.client.streamId
+        #self.frameworkId = self.client.frameworkId
+
 
     def core_limit_reached(self):
         running_count = len(self.runningList)
@@ -251,13 +290,11 @@ def main():
     cfg       = config.config()    
     espa_api  = espa.api_connect(cfg)
     work_list = Queue() # multiprocessing Queue
-    framework = ESPAFramework(cfg, espa_api, work_list)
+    hostname  = os.uname()[1] # os.uname returns tuple: ('Linux', '<host name>', '<version>', '<datetime>', 'x86_64')
 
-    # Scheduled requests for espa processing work, and handle-orders call
-    scheduled_process  = Process(target=scheduled_tasks, args=(cfg, espa_api, work_list,))
+    framework = ESPAFramework(cfg, espa_api, work_list, hostname)
 
     try:
-        scheduled_process.start()
         framework.client.register()
     except Exception as err:
         log.error("espa scheduler encountered an error, killing scheduled processes. tearing down framework. error: {}".format(err))
