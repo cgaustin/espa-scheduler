@@ -23,6 +23,7 @@ def get_products_to_process(cfg, espa, work_list):
         # pull the first item off the product types list
         product_type = products.pop(0)
         # get products to process for the product_type
+        log.debug("Requesting {} {} products...".format(request_count, product_type))
         units = espa.get_products_to_process([product_type], request_count).get("products")
         # put that product type at the back of the list
         products.append(product_type)
@@ -50,9 +51,9 @@ def get_products_to_process(cfg, espa, work_list):
 def scheduled_tasks(cfg, espa_api, work_list):
     product_frequency = cfg.get('product_request_frequency')
     handler_frequency = cfg.get('handle_orders_frequency')
-    log.debug("calling get_products_to_process with frequency: {} minutes".format(product_frequency))
+    #log.debug("calling get_products_to_process with frequency: {} minutes".format(product_frequency))
     log.debug("calling handle_orders with frequency: {} minutes".format(handler_frequency))
-    schedule.every(product_frequency).minutes.do(get_products_to_process, cfg=cfg, espa=espa_api, work_list=work_list)
+    #schedule.every(product_frequency).minutes.do(get_products_to_process, cfg=cfg, espa=espa_api, work_list=work_list)
     schedule.every(handler_frequency).minutes.do(espa_api.handle_orders)
     while True:
         schedule.run_pending()
@@ -87,7 +88,7 @@ class ESPAFramework(object):
         self.client.on(MesosClient.UPDATE, self.status_update)
 
         # put some work on the queue
-        get_products_to_process(cfg, self.espa, self.workList)
+        #get_products_to_process(cfg, self.espa, self.workList)
 
     def _getResource(self, res, name):
         for r in res:
@@ -157,7 +158,7 @@ class ESPAFramework(object):
         response.offers.length = len(offers)
         response.offers.accepted = 0
         log.debug("Received {} new offers...".format(response.offers.length))
-
+        
         # check to see if Mesos tasks are enabled
         if self.espa.mesos_tasks_disabled():
             # decline the offers to free up the resources
@@ -179,6 +180,8 @@ class ESPAFramework(object):
             return response
         else:
             response.tasks.enabled = True
+            log.debug("Requesting products to process...")
+            get_products_to_process(self.cfg, self.espa, self.workList)
 
         for offer in offers:
             mesos_offer = offer.get_offer()
