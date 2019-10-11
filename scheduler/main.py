@@ -61,10 +61,11 @@ def scheduled_tasks(cfg, espa_api, work_list):
 
 class ESPAFramework(object):
 
-    def __init__(self, cfg, espa_api, worklist):
+    def __init__(self, cfg, espa_api, worklist, hostname):
         master    = cfg.get('mesos_master') 
         principal = cfg.get('mesos_principal')
         secret    = cfg.get('mesos_secret')
+        user      = cfg.get('espa_user')
 
         self.workList        = worklist
         self.runningList     = {}
@@ -80,15 +81,14 @@ class ESPAFramework(object):
         self.espa = espa_api
         self.cfg  = cfg
 
-        self.client = MesosClient(mesos_urls=[master], frameworkName='ESPA Mesos Framework')
+        self.client = MesosClient(mesos_urls=[master], frameworkName='ESPA Mesos Framework', frameworkHostname=hostname, frameworkUser=user)
         self.client.verify = False
         self.client.set_credentials(principal, secret)
         self.client.on(MesosClient.SUBSCRIBED, self.subscribed)
         self.client.on(MesosClient.OFFERS, self.offer_received)
         self.client.on(MesosClient.UPDATE, self.status_update)
+        self.client.set_role(user)
 
-        # put some work on the queue
-        #get_products_to_process(cfg, self.espa, self.workList)
 
     def _getResource(self, res, name):
         for r in res:
@@ -254,7 +254,9 @@ def main():
     cfg       = config.config()    
     espa_api  = espa.api_connect(cfg)
     work_list = Queue() # multiprocessing Queue
-    framework = ESPAFramework(cfg, espa_api, work_list)
+    hostname  = os.uname()[1] # os.uname returns tuple: ('Linux', '<host name>', '<version>', '<datetime>', 'x86_64')
+
+    framework = ESPAFramework(cfg, espa_api, work_list, hostname)
 
     # Scheduled requests for espa processing work, and handle-orders call
     scheduled_process  = Process(target=scheduled_tasks, args=(cfg, espa_api, work_list,))
