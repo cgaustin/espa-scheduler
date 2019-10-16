@@ -60,7 +60,7 @@ class TestTask(unittest.TestCase):
     def test_command(self):
         work_json = {"foo": 1}
         command = task.command(work_json)
-        expected = 'python /src/processing/main.py \'[{"foo":1}]\''
+        expected = 'python /src/processing/main.py \'[{"foo":1}]\';exit'
         self.assertEqual(command, expected)
 
     def test_build(self):
@@ -96,7 +96,7 @@ class TestTask(unittest.TestCase):
         expected.resources = [{'name':'cpus', 'type':'SCALAR', 'scalar':{'value': 1}},
                               {'name':'mem' , 'type':'SCALAR', 'scalar':{'value': 5120}},
                               {'name':'disk', 'type':'SCALAR', 'scalar':{'value': 10240}}]
-        expected.command.value = "python /src/processing/main.py '[{\"foo\":1}]'"
+        expected.command.value = "python /src/processing/main.py '[{\"foo\":1}]';exit"
         expected.command.environment.variables = [{"name":"ESPA_USER",             "value":"user"},
                                                   {"name":"ESPA_GROUP",            "value":"group"},
                                                   {"name":"ESPA_STORAGE",          "value":"/espa-storage"},

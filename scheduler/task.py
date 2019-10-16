@@ -31,7 +31,7 @@ def resources(cpus, memory, disk):
 
 def command(work_json):
     """Return formatted command for the task container"""
-    cmd = "python /src/processing/main.py '{}'".format(json.dumps([work_json]).replace(' ', ''))
+    cmd = "python /src/processing/main.py '{}';exit".format(json.dumps([work_json]).replace(' ', ''))
     return cmd
 
 def build(id, offer, image_name, cpu, mem, disk, work, cfg):
