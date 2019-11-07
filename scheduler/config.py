@@ -14,10 +14,11 @@ def default_env(variable, value, operator=None):
 def product_frequency():
     de = default_env
     frequency = []
-    frequency.append(['landsat', de('landsat_frequency', 3, int)[1]])
-    frequency.append(['modis',   de('modis_frequency',   2, int)[1]])
-    frequency.append(['viirs',   de('viirs_frequency',   1, int)[1]])
-    frequency.append(['plot',    de('plot_frequency',    1, int)[1]])
+    frequency.append(['landsat',   de('landsat_frequency',   3, int)[1]])
+    frequency.append(['modis',     de('modis_frequency',     2, int)[1]])
+    frequency.append(['viirs',     de('viirs_frequency',     1, int)[1]])
+    frequency.append(['sentinel',  de('sentinel_frequency',  1, int)[1]])
+    frequency.append(['plot',      de('plot_frequency',      1, int)[1]])
     # TODO: Add Sentinel-2
     return list(itertools.chain.from_iterable(itertools.repeat(x[0], x[1]) for x in frequency))
 

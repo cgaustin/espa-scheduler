@@ -58,7 +58,8 @@ ESPA Scheduler is configured using these environment variables:
 | `ASTER_GED_SERVER_NAME` | Aster Data host, exposed to Task                            |         |
 | `LANDSAT_FREQUENCY`     | How often to process Landsat units, given other frequencies | 3       |
 | `MODIS_FREQUENCY`       | How often to process Modis units, given other frequencies   | 2       |
-| `VIIRS_FREQUENCY`       | How often to process Viirs units, given other frequencies   | 1       | 
+| `VIIRS_FREQUENCY`       | How often to process Viirs units, given other frequencies   | 1       |
+| `SENTINEL_FREQUENCY`    | How often to process Sentinel units, given other frequencies| 1       |
 | `PLOT_FREQUENCY`        | How often to process Plot units, given other frequencies    | 1       |
 | `URS_MACHINE`           | The URL for accessing Earthdata login                       |         |
 | `URS_LOGIN`             | The ESPA Earthdata login username                           |         |
