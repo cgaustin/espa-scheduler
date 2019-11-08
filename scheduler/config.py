@@ -19,7 +19,6 @@ def product_frequency():
     frequency.append(['viirs',     de('viirs_frequency',     1, int)[1]])
     frequency.append(['sentinel',  de('sentinel_frequency',  1, int)[1]])
     frequency.append(['plot',      de('plot_frequency',      1, int)[1]])
-    # TODO: Add Sentinel-2
     return list(itertools.chain.from_iterable(itertools.repeat(x[0], x[1]) for x in frequency))
 
 def config():
