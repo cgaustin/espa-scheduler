@@ -17,7 +17,7 @@ class TestConfig(unittest.TestCase):
     
     def test_product_frequency(self):
         frequency = config.product_frequency()
-        self.assertEqual(frequency, ['landsat', 'landsat', 'landsat', 'modis', 'modis', 'viirs', 'plot'])
+        self.assertEqual(frequency, ['landsat', 'landsat', 'landsat', 'modis', 'modis', 'viirs', 'sentinel', 'plot'])
     
     def test_config(self):
         cfg = config.config()
