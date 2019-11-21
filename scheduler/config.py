@@ -48,6 +48,7 @@ def config():
         de('espa_work_dir', '/mnt/mesos/sandbox'),
         de('aster_ged_server_name', None),
         de('handle_orders_frequency', 7, int),
+        de('revive_frequency', 14, int),
         de('log_level', 'debug'),
         de('urs_machine', 'machine'), # these urs_* values provide auth to nasa earthdata
         de('urs_login', 'login'),

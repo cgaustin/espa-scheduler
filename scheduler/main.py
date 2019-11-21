@@ -51,8 +51,11 @@ def get_products_to_process(cfg, espa, work_list):
 
 def revive_framework(api, url, streamid, frameworkid):
 
-    if not api.mesos_tasks_disabled():
-        log.debug("mesos tasks not disabled, sending revive request")
+    tasks_disabled = api.mesos_tasks_disabled()
+    products_available = api.get_products_to_process(None, 1)
+
+    if products_available and not tasks_disabled:
+        log.debug("products are available and mesos tasks are not disabled, sending revive request")
         headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
@@ -82,11 +85,11 @@ def revive_framework(api, url, streamid, frameworkid):
 
 
 def scheduled_tasks(cfg, espa_api, work_list, mesos_url, stream_id, framework_id):
-    product_frequency = cfg.get('product_request_frequency')
+    revive_frequency = cfg.get('revive_frequency')
     handler_frequency = cfg.get('handle_orders_frequency')
     log.debug("calling check_revive with frequency: {} minutes".format(product_frequency))
     log.debug("calling handle_orders with frequency: {} minutes".format(handler_frequency))
-    schedule.every(product_frequency).minutes.do(revive_framework, api=espa_api, url=mesos_url, streamid=stream_id, framworkid=framework_id)
+    schedule.every(revive_frequency).minutes.do(revive_framework, api=espa_api, url=mesos_url, streamid=stream_id, framworkid=framework_id)
     schedule.every(handler_frequency).minutes.do(espa_api.handle_orders)
     while True:
         schedule.run_pending()
