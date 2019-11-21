@@ -45,6 +45,7 @@ def config():
         de('espa_storage', None), # name required by processing libs
         de('espa_user', None),  # name required by processing libs
         de('espa_group', None),  # name required by processing libs
+        de('espa_work_dir', '/mnt/mesos/sandbox'),
         de('aster_ged_server_name', None),
         de('handle_orders_frequency', 7, int),
         de('log_level', 'debug'),
