@@ -7,6 +7,7 @@ def env_vars(cfg):
             {"name":"ESPA_GROUP",            "value":cfg.get('espa_group')},
             {"name":"ESPA_STORAGE",          "value":cfg.get('espa_storage')},
             {"name":"ESPA_API",              "value":cfg.get('espa_api')},
+            {"name":"ESPA_WORK_DIR",         "value":cfg.get('espa_work_dir')},
             {"name":"ASTER_GED_SERVER_NAME", "value":cfg.get('aster_ged_server_name')},
             {"name":"AUX_DIR",               "value":cfg.get('aux_dir')},
             {"name":"URS_MACHINE",           "value":cfg.get('urs_machine')},
