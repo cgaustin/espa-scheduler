@@ -1,5 +1,7 @@
 import addict
+import json
 import os
+import requests
 import schedule
 from mesoshttp.client import MesosClient
 from multiprocessing import Process, Queue
@@ -48,12 +50,40 @@ def get_products_to_process(cfg, espa, work_list):
         
     return True
 
-def scheduled_tasks(cfg, espa_api, work_list):
-    product_frequency = cfg.get('product_request_frequency')
+
+def revive_framework(api, url, streamid, frameworkid):
+    tasks_disabled = api.mesos_tasks_disabled()
+    products_available = api.get_products_to_process(None, 1)['products']
+
+    log.debug("checking whether a REVIVE call to the Master needs to be made. \n"
+              "Tasks disabled: {}, products available: {}".format(tasks_disabled, products_available))
+
+    if products_available and not tasks_disabled:
+        headers = {'Content-Type': 'application/json',
+                   'Accept': 'application/json',
+                   'Mesos-Stream-Id': streamid}
+
+        revive = {"framework_id": {"value": frameworkid},
+                  "type": "REVIVE"}
+
+        try:
+            resp = requests.post(url, json.dumps(revive), headers=headers, verify=False)
+            log.debug("REVIVE request response code: {} ".format(resp.status_code))
+        except Exception as e:
+            log.error("Error making revive request, exception: {}".format(e))
+            return False
+    else:
+        log.debug("tasks_disabled {}, products_available: {}, no revive request will be sent".format(tasks_disabled, products_available))
+        
+    return True
+
+
+def scheduled_tasks(cfg, espa_api, work_list, mesos_url, stream_id, framework_id):
+    revive_frequency = cfg.get('revive_frequency')
     handler_frequency = cfg.get('handle_orders_frequency')
-    #log.debug("calling get_products_to_process with frequency: {} minutes".format(product_frequency))
+    log.debug("calling check_revive with frequency: {} minutes".format(revive_frequency))
     log.debug("calling handle_orders with frequency: {} minutes".format(handler_frequency))
-    #schedule.every(product_frequency).minutes.do(get_products_to_process, cfg=cfg, espa=espa_api, work_list=work_list)
+    schedule.every(revive_frequency).minutes.do(revive_framework, api=espa_api, url=mesos_url, streamid=stream_id, frameworkid=framework_id)
     schedule.every(handler_frequency).minutes.do(espa_api.handle_orders)
     while True:
         schedule.run_pending()
@@ -83,6 +113,12 @@ class ESPAFramework(object):
 
         self.client = MesosClient(mesos_urls=[master], frameworkName='ESPA Mesos Framework', frameworkHostname=hostname, frameworkUser=user)
         self.client.verify = False
+        # self.driver gets defined on subscription to an instance of SchedulerDriver 
+        # https://github.com/osallou/python-mesos-http/blob/master/mesoshttp/client.py
+        self.driver      = None 
+        self.streamId    = None
+        self.frameworkId = None
+        self.mesosurl    = None
         self.client.set_credentials(principal, secret)
         self.client.on(MesosClient.SUBSCRIBED, self.subscribed)
         self.client.on(MesosClient.OFFERS, self.offer_received)
@@ -104,9 +140,31 @@ class ESPAFramework(object):
                 r['scalar']['value'] -= value
         return
 
+    def suppress_offers(self):
+        log.debug("attempting to suppress offers!")
+
+        headers = {'Content-Type': 'application/json',
+                   'Accept': 'application/json',
+                   'Mesos-Stream-Id': self.streamId}
+
+        suppress = {"framework_id": {"value": self.frameworkId},
+                    "type": "SUPPRESS",
+                    "suppress": {"roles": [self.client.frameworkRole]}}
+
+        try:
+            resp = requests.post(self.mesosurl + '/api/v1/scheduler', json.dumps(suppress), headers=headers, verify=False)
+        except Exception as e:
+            log.error("Error suppressing offers! {}".format(e))
+
     def subscribed(self, driver):
-        log.warning('SUBSCRIBED')
         self.driver = driver
+        self.streamId = driver.streamId
+        self.frameworkId = driver.frameworkId
+        self.mesosurl = driver.mesos_url + '/api/v1/scheduler'
+        log.info("Framework subscribed! streamId: {}, frameworkId: {}, mesosurl: {}".format(self.streamId, self.frameworkId, self.mesosurl))
+        # we're subscribed, spin off the scheduling work
+        scheduled_process  = Process(target=scheduled_tasks, args=(self.cfg, self.espa, self.workList, self.mesosurl, self.streamId, self.frameworkId))
+        scheduled_process.start()
 
     def core_limit_reached(self):
         running_count = len(self.runningList)
@@ -162,9 +220,10 @@ class ESPAFramework(object):
         # check to see if Mesos tasks are enabled
         if self.espa.mesos_tasks_disabled():
             # decline the offers to free up the resources
-            log.debug("mesos tasks disabled, declining {} offers".format(len(offers)))
+            log.debug("mesos tasks disabled, suppressing offers!")
             for offer in offers:
-                self.decline_offer(offer)   
+                self.decline_offer(offer)
+            self.suppress_offers()
             response.tasks.enabled = False
             return response
         else:
@@ -258,16 +317,11 @@ def main():
 
     framework = ESPAFramework(cfg, espa_api, work_list, hostname)
 
-    # Scheduled requests for espa processing work, and handle-orders call
-    scheduled_process  = Process(target=scheduled_tasks, args=(cfg, espa_api, work_list,))
-
     try:
-        scheduled_process.start()
         framework.client.register()
     except Exception as err:
         log.error("espa scheduler encountered an error, killing scheduled processes. tearing down framework. error: {}".format(err))
         framework.client.tearDown()
-        scheduled_process.kill()
 
     
 if __name__ == '__main__':
