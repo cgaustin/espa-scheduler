@@ -70,7 +70,7 @@ def revive_framework(api, url, streamid, frameworkid):
             resp = requests.post(url, json.dumps(revive), headers=headers, verify=False)
             log.debug("REVIVE request response code: {} ".format(resp.status_code))
         except Exception as e:
-            log.error("Error calling revive, response: {}".format(resp))
+            log.error("Error making revive request, exception: {}".format(e))
             return False
     else:
         log.debug("tasks_disabled {}, products_available: {}, no revive request will be sent".format(tasks_disabled, products_available))
@@ -152,7 +152,7 @@ class ESPAFramework(object):
                     "suppress": {"roles": [self.client.frameworkRole]}}
 
         try:
-            resp = requests.post(self.mesos_url + '/api/v1/scheduler', json.dumps(suppress), headers=headers, verify=False)
+            resp = requests.post(self.mesosurl + '/api/v1/scheduler', json.dumps(suppress), headers=headers, verify=False)
         except Exception as e:
             log.error("Error suppressing offers! {}".format(e))
 
@@ -322,7 +322,6 @@ def main():
     except Exception as err:
         log.error("espa scheduler encountered an error, killing scheduled processes. tearing down framework. error: {}".format(err))
         framework.client.tearDown()
-        scheduled_process.kill()
 
     
 if __name__ == '__main__':
