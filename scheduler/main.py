@@ -55,7 +55,8 @@ def revive_framework(api, url, streamid, frameworkid):
     tasks_disabled = api.mesos_tasks_disabled()
     products_available = api.get_products_to_process(None, 1)['products']
 
-    log.debug("checking whether a REVIVE call to the Master needs to be made. \n Tasks disabled: {}, products available: {}".format(tasks_disabled, products_available))
+    log.debug("checking whether a REVIVE call to the Master needs to be made. \n"
+              "Tasks disabled: {}, products available: {}".format(tasks_disabled, products_available))
 
     if products_available and not tasks_disabled:
         headers = {'Content-Type': 'application/json',
