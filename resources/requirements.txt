@@ -4,7 +4,7 @@ certifi==2019.6.16
 cffi==1.12.3
 chardet==3.0.4
 coverage==4.5.4
-cryptography==2.7
+cryptography==3.2
 idna==2.8
 kazoo==2.6.1
 mesoshttp==0.3.2
